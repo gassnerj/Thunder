@@ -1,0 +1,12 @@
+C:\SynologyDrive\MIB\GPSLocation\vMixLib\bin\Debug\net6.0\vMixLib.deps.json
+C:\SynologyDrive\MIB\GPSLocation\vMixLib\bin\Debug\net6.0\vMixLib.dll
+C:\SynologyDrive\MIB\GPSLocation\vMixLib\bin\Debug\net6.0\vMixLib.pdb
+C:\SynologyDrive\MIB\GPSLocation\vMixLib\obj\Debug\net6.0\vMixLib.csproj.AssemblyReference.cache
+C:\SynologyDrive\MIB\GPSLocation\vMixLib\obj\Debug\net6.0\vMixLib.GeneratedMSBuildEditorConfig.editorconfig
+C:\SynologyDrive\MIB\GPSLocation\vMixLib\obj\Debug\net6.0\vMixLib.AssemblyInfoInputs.cache
+C:\SynologyDrive\MIB\GPSLocation\vMixLib\obj\Debug\net6.0\vMixLib.AssemblyInfo.cs
+C:\SynologyDrive\MIB\GPSLocation\vMixLib\obj\Debug\net6.0\vMixLib.csproj.CoreCompileInputs.cache
+C:\SynologyDrive\MIB\GPSLocation\vMixLib\obj\Debug\net6.0\vMixLib.dll
+C:\SynologyDrive\MIB\GPSLocation\vMixLib\obj\Debug\net6.0\refint\vMixLib.dll
+C:\SynologyDrive\MIB\GPSLocation\vMixLib\obj\Debug\net6.0\vMixLib.pdb
+C:\SynologyDrive\MIB\GPSLocation\vMixLib\obj\Debug\net6.0\ref\vMixLib.dll

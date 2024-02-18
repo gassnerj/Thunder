@@ -1,0 +1,64 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.7.34302.85
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GeoJsonWeather", "GeoJsonWeather\GeoJsonWeather.csproj", "{C97AA664-1CA9-4C2A-8E3C-1AD87A8A147F}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GPSData", "GPSData\GPSData.csproj", "{5446AA31-0733-4F11-9E3D-D679336BBDF9}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GPSLocation", "GPSLocation\GPSLocation.csproj", "{C8617E1F-591A-4FF3-A84F-0DA3FC88B7F1}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MeteorologyCore", "MeteorologyCore\MeteorologyCore.csproj", "{CF65364C-DF8D-46FB-B60A-B169169B81B6}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "WeatherAlertsWF", "WeatherAlertsWF\WeatherAlertsWF.csproj", "{B2CEF408-4045-43F9-8664-D33F822E5409}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ThunderApp", "ThunderApp\ThunderApp.csproj", "{A48111CC-25DF-4641-911B-A342A1B60FD9}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vMixController", "vMixController\vMixController.csproj", "{2B58CE97-8C99-4B49-AC87-4AC48413B0A5}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SolutionTests", "SolutionTests\SolutionTests.csproj", "{433C0191-DE3F-45BC-8AE4-80396D906D9A}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{C97AA664-1CA9-4C2A-8E3C-1AD87A8A147F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C97AA664-1CA9-4C2A-8E3C-1AD87A8A147F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C97AA664-1CA9-4C2A-8E3C-1AD87A8A147F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C97AA664-1CA9-4C2A-8E3C-1AD87A8A147F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5446AA31-0733-4F11-9E3D-D679336BBDF9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5446AA31-0733-4F11-9E3D-D679336BBDF9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5446AA31-0733-4F11-9E3D-D679336BBDF9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5446AA31-0733-4F11-9E3D-D679336BBDF9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C8617E1F-591A-4FF3-A84F-0DA3FC88B7F1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C8617E1F-591A-4FF3-A84F-0DA3FC88B7F1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C8617E1F-591A-4FF3-A84F-0DA3FC88B7F1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C8617E1F-591A-4FF3-A84F-0DA3FC88B7F1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CF65364C-DF8D-46FB-B60A-B169169B81B6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CF65364C-DF8D-46FB-B60A-B169169B81B6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CF65364C-DF8D-46FB-B60A-B169169B81B6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CF65364C-DF8D-46FB-B60A-B169169B81B6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B2CEF408-4045-43F9-8664-D33F822E5409}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B2CEF408-4045-43F9-8664-D33F822E5409}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B2CEF408-4045-43F9-8664-D33F822E5409}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B2CEF408-4045-43F9-8664-D33F822E5409}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A48111CC-25DF-4641-911B-A342A1B60FD9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A48111CC-25DF-4641-911B-A342A1B60FD9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A48111CC-25DF-4641-911B-A342A1B60FD9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A48111CC-25DF-4641-911B-A342A1B60FD9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2B58CE97-8C99-4B49-AC87-4AC48413B0A5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2B58CE97-8C99-4B49-AC87-4AC48413B0A5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2B58CE97-8C99-4B49-AC87-4AC48413B0A5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2B58CE97-8C99-4B49-AC87-4AC48413B0A5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{433C0191-DE3F-45BC-8AE4-80396D906D9A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{433C0191-DE3F-45BC-8AE4-80396D906D9A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{433C0191-DE3F-45BC-8AE4-80396D906D9A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{433C0191-DE3F-45BC-8AE4-80396D906D9A}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

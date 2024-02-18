@@ -1,0 +1,30 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net6.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\WeatherAlerts\GPSData\GPSData.csproj" />
+    <ProjectReference Include="..\..\WeatherAlerts\GPSData\GPSData.csproj" />
+    <ProjectReference Include="..\GPSLocation\vMixLib\vMixLib.csproj" />
+    <ProjectReference Include="..\vMixLib\vMixLib.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Update="AboutBox1.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Update="GPSMonitorForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Update="SerialPorts.cs">
+      <SubType>Form</SubType>
+    </Compile>
+  </ItemGroup>
+
+</Project>
