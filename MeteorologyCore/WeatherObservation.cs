@@ -1,6 +1,5 @@
-﻿using System.Diagnostics;
-using GeoJsonWeather;
-using GeoJsonWeather.Api;
+﻿
+/*
 using Newtonsoft.Json.Linq;
 
 namespace MeteorologyCore;
@@ -15,7 +14,7 @@ public class WeatherObservation
     public Fahrenheit Temperature { get; set; } = null!;
     public HeatIndex HeatIndex { get; set; } = null!;
     public DewPoint DewPoint { get; set; } = null!;
-    public RelativeHumidity RH { get; set; } = null!;
+    public RelativeHumidityCalculator RH { get; set; } = null!;
     public Wind Wind { get; set; } = null!;
     public WindChill WindChill { get; set; } = null!;
     public Pressure Pressure { get; set; } = null!;
@@ -26,7 +25,7 @@ public class WeatherObservation
     {
     }
 
-    public WeatherObservation(Fahrenheit t,                   Pressure             p, Wind w, RelativeHumidity rh,
+    public WeatherObservation(Fahrenheit t,                   Pressure             p, Wind w, RelativeHumidityCalculator rh,
         IHumidityCalculator              humidityCalculator,  IDewPointCalculator  dewPointCalculator,
         IHeatIndexCalculator             heatIndexCalculator, IWindChillCalculator windChillCalculator, IASOSStation selectedStation)
     {
@@ -48,46 +47,6 @@ public class WeatherObservation
         dewPointCalculator.Calculate(Temperature.ToCelsius(), RH, Pressure);
     }
 
-    //public static List<WeatherObservation> ReadMetarFromCSV(FileInfo file)
-    //{
-    //    var obsList = new List<WeatherObservation>();
-
-    //    string[] rawMetar = File.ReadAllLines(file.FullName);
-
-    //    foreach (string m in rawMetar)
-    //    {
-    //        DateTime ts;
-    //        try
-    //        {
-    //            string metar = m.Split(',')[2];
-    //            if (m.Length > 30)
-    //            {
-    //                //var d = MetarDecoder.ParseWithMode(metar);
-    //                //var ws = new WeatherObservation(
-    //                //    new Celsius(d.AirTemperature.ActualValue).ToFahrenheit(),
-    //                //    new Pressure(d.Pressure.ActualValue),
-    //                //    new Wind()
-    //                //    {
-    //                //        Speed = d.SurfaceWind.MeanSpeed.ActualValue,
-    //                //        Direction = new Direction(d.SurfaceWind.MeanDirection.ActualValue)
-    //                //    },
-    //                //    new RelativeHumidity(52))
-    //                {
-    //                    Timestamp = new DateTime(DateTime.Now.Year, DateTime.Now.Month, Convert.ToInt32(d.Day.Value), Convert.ToInt32(d.Time.Replace("UTC", "").Substring(0, 2)), Convert.ToInt32(d.Time.Replace("UTC", "").Substring(3, 2)), 0)
-    //                };
-    //                ws.Timestamp = ws.Timestamp.ToLocalTime();
-    //                obsList.Add(ws);
-
-
-    //            }
-    //        }
-    //        catch (Exception ex)
-    //        {
-    //            Debug.Print(ex.Message);
-    //        }
-    //    }
-    //    return obsList;
-    //}
 
     public WeatherObservation FromJToken(JToken o)
     {
@@ -103,7 +62,7 @@ public class WeatherObservation
         double     windSpeed     = (GetWindSpeed(o) ?? 0);
         Wind = new Wind(direction: windDirection, speed: windSpeed);
 
-        RH       = new RelativeHumidity((GetPropertyValue<Celsius>(o, "relativeHumidity", "value") ?? 0));
+        RH       = new RelativeHumidityCalculator((GetPropertyValue<Celsius>(o, "relativeHumidity", "value") ?? 0));
         Pressure = new Pressure((GetPropertyValue<Celsius>(o, "barometricPressure", "value") ?? 0) / 100);
 
         Timestamp = GetPropertyValue<DateTime>(o, "timestamp");
@@ -166,6 +125,6 @@ public class WeatherObservation
         RH        = new RelativeHumidity((Celsius)Convert.ToDouble(o["properties"]["relativeHumidity"]["value"].ToString()));
         Pressure  = new Pressure((Celsius)Convert.ToDouble(o["properties"]["barometricPressure"]["value"].ToString()) / 100);
         Timestamp = DateTime.Parse(o["properties"]["timestamp"].ToString());
-        WindChill = WindChill.Calculate(Temperature, Wind.Speed);*/
+        WindChill = WindChill.Calculate(Temperature, Wind.Speed);#1#
     }
-}
+}*/

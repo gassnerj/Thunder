@@ -1,274 +1,110 @@
 ﻿namespace MeteorologyCore;
 
-public class Temperature
+public class Celsius : ITemperature
 {
-    public double Value { get; set; }
-    public const double ABSOLUTEZERO = 273.15;
-    public const double FREEZINGPOINTWATER = 32;
+    public double Value { get; }
 
-    public Temperature()
-    {
-
-    }
-
-    public Temperature(double t)
-    {
-        this.Value = t;
-    }
-}
-
-public class Celsius : Temperature
-{
     public Celsius(double temperature)
     {
-        this.Value = temperature;
+        Value = temperature;
     }
 
-    public Fahrenheit ToFahrenheit()
-    {
-        return new Fahrenheit(this.Value * 1.8 + FREEZINGPOINTWATER);
-    }
-
-    public Kelvin ToKelvin()
-    {
-        return new Kelvin(this.Value + ABSOLUTEZERO);
-    }
-
-    public static Celsius operator +(Celsius f, double v)
-    {
-        return new Celsius(f.Value + v);
-    }
-
-    public static Celsius operator *(Celsius f, double v)
-    {
-        return new Celsius(f.Value * v);
-    }
-
-    public static Celsius operator -(Celsius f, double v)
-    {
-        return new Celsius(f.Value - v);
-    }
-
-    public static implicit operator Celsius(double v)
-    {
-        return new Celsius(v);
-    }
-
-    public static implicit operator double(Celsius t)
-    {
-        return t.Value;
-    }
+    public ITemperature ToFahrenheit() => new Fahrenheit(Value * 9 / 5 + 32);
+    public ITemperature ToKelvin()  => new Kelvin(Value + 273.15);
+    public ITemperature ToCelsius() => this;
+    public override string ToString() => $"{Math.Round(Value)} °C";
 }
 
-public class Fahrenheit : Temperature
+public class Fahrenheit : ITemperature
 {
+    public double Value { get; }
+
     public Fahrenheit(double temperature)
     {
         Value = temperature;
     }
 
-    public Celsius ToCelsius()
-    {
-        return new Celsius((this.Value - FREEZINGPOINTWATER) * .5556);
-    }
+    public ITemperature ToCelsius() => new Celsius((Value - 32) * 5 / 9);
 
-    public Kelvin ToKelvin()
-    {
-        return new Kelvin(this.ToCelsius() + ABSOLUTEZERO);
-    }
+    public ITemperature ToKelvin()    => new Kelvin((Value - 32) * 5 / 9 + 273.15);
+    public ITemperature ToFahrenheit() => this;
 
-    public static Fahrenheit operator +(Fahrenheit f, double v)
-    {
-        return new Fahrenheit(f.Value + v);
-    }
-
-    public static Fahrenheit operator *(Fahrenheit f, double v)
-    {
-        return new Fahrenheit(f.Value * v);
-    }
-
-    public static Fahrenheit operator -(Fahrenheit f, double v)
-    {
-        return new Fahrenheit(f.Value - v);
-    }
-
-    public static implicit operator double(Fahrenheit t)
-    {
-        return t.Value;
-    }
-
-    public static implicit operator Fahrenheit(double v)
-    {
-        return new Fahrenheit(v);
-    }
+    public override string ToString() => $"{Math.Round(Value)} °F";
 }
 
-public class Kelvin : Temperature
+public class Kelvin : ITemperature
 {
+    public double Value { get; }
+
     public Kelvin(double temperature)
     {
-        this.Value = temperature;
+        Value = temperature;
     }
 
-    public Fahrenheit ToFahrenheit()
-    {
-        return new Fahrenheit((double)this.ToCelsius().ToFahrenheit());
-    }
+    public ITemperature ToCelsius() => new Celsius(Value - 273.15);
 
-    public Celsius ToCelsius()
-    {
-        return new Celsius(this.Value - ABSOLUTEZERO);
-    }
+    public ITemperature ToFahrenheit() => new Fahrenheit((Value - 273.15) * 9 / 5 + 32);
+    public ITemperature ToKelvin()     => this;
 
-    public static Kelvin operator +(Kelvin f, double v)
-    {
-        return new Kelvin(f.Value + v);
-    }
+    public override string ToString() => $"{Math.Round(Value)} K";
+}
 
-    public static Kelvin operator *(Kelvin f, double v)
+public class DewPointCalculator
+{
+    public Celsius Calculate(Celsius temperature, double relativeHumidity)
     {
-        return new Kelvin(f.Value * v);
-    }
-
-    public static Kelvin operator -(Kelvin f, double v)
-    {
-        return new Kelvin(f.Value - v);
-    }
-
-    public static implicit operator Kelvin(double v)
-    {
-        return new Kelvin(v);
-    }
-
-    public static implicit operator double(Kelvin t)
-    {
-        return t.Value;
+        double es = new VaporPressure().Calculate(temperature);
+        double numerator = 237.3 * Math.Log((es * relativeHumidity) / 611.2);
+        double denominator = 7.5 * Math.Log(10) - Math.Log((es * relativeHumidity) / 611.2);
+        return new Celsius(numerator / denominator);
     }
 }
 
-public class HeatIndex : Temperature
+public interface IHeatIndex
 {
-    public HeatIndex()
-    {
-
-    }
-
-    public HeatIndex(double temperature)
-    {
-        this.Value = temperature;
-    }
-
-    public static HeatIndex Calculate(Fahrenheit t, RelativeHumidity rH)
-    {
-        if (t > 79)
-        {
-            double temp = t.Value;
-
-            double hi = -42.379 + (2.04901523 * temp) + (10.14333127 * (double)rH)
-                - (0.22475541 * temp * (double)rH) - (6.83783 * Math.Pow(10, -3) * Math.Pow(temp, 2))
-                - (5.481717 * Math.Pow(10, -2) * Math.Pow((double)rH, 2)) + (1.22874 * Math.Pow(10, -3) * Math.Pow(temp, 2) * (double)rH)
-                                                                          + (8.5282 * Math.Pow(10, -4) * temp * Math.Pow((double)rH, 2)) - (1.99 * Math.Pow(10, -6) * Math.Pow(temp, 2) * Math.Pow((double)rH, 2));
-            return hi;
-        }
-        else
-        {
-            return null;
-        }
-
-    }
-
-    public static HeatIndex Calculate(Celsius t, RelativeHumidity rH)
-    {
-        return HeatIndex.Calculate(t.ToFahrenheit(), rH);
-    }
-
-    public static implicit operator HeatIndex(double v)
-    {
-        return new HeatIndex(v);
-    }
-
-    public static implicit operator double(HeatIndex t)
-    {
-        return t.Value;
-    }
+    ITemperature? Calculate(ITemperature temperature, double relativeHumidity);
 }
 
-public class WindChill
+public class HeatIndexCalculator : IHeatIndex
 {
-    private WindChill windChill;
-
-    public double Value { get; set; }
-
-    public WindChill(double v)
+    public ITemperature? Calculate(ITemperature temperature, double relativeHumidity)
     {
-        this.Value = v;
-    }
-
-    public WindChill(WindChill windChill)
-    {
-        this.windChill = windChill;
-    }
-
-    public static WindChill Calculate(Fahrenheit f, double windSpeed)
-    {
-        if (f < 41)
+        if (temperature.ToCelsius().Value > 79)
         {
-            double wc = 35.74 + (.6215 * (double)f) - (35.75 * Math.Pow(windSpeed, .16))
-                        + (.4275 * (double)f * Math.Pow(windSpeed, .16));
-
-            return new WindChill(wc);
+            double temp = temperature.ToFahrenheit().Value;
+            double hi = -42.379 + (2.04901523 * temp) + (10.14333127 * relativeHumidity)
+                - (0.22475541 * temp * relativeHumidity) - (6.83783 * Math.Pow(10, -3) * Math.Pow(temp, 2))
+                - (5.481717 * Math.Pow(10, -2) * Math.Pow(relativeHumidity, 2))
+                + (1.22874 * Math.Pow(10, -3) * Math.Pow(temp, 2) * relativeHumidity)
+                + (8.5282 * Math.Pow(10, -4) * temp * Math.Pow(relativeHumidity, 2))
+                - (1.99 * Math.Pow(10, -6) * Math.Pow(temp, 2) * Math.Pow(relativeHumidity, 2));
+            return new Fahrenheit(hi);
         }
         else
         {
             return null;
         }
     }
-
-    public static WindChill operator +(WindChill f, double v)
-    {
-        return new WindChill(f + v);
-    }
-
-    public static WindChill operator *(WindChill f, double v)
-    {
-        return new WindChill(f * v);
-    }
-
-    public static WindChill operator -(WindChill f, double v)
-    {
-        return new WindChill(f - v);
-    }
-
-    public static implicit operator WindChill(double v)
-    {
-        return new WindChill(v);
-    }
-
-    public static implicit operator double(WindChill t)
-    {
-        return t.Value;
-    }
 }
 
-public class DewPoint
+public interface IWindChill
 {
-    public Celsius Value { get; set; }
+    ITemperature? Calculate(ITemperature temperature, double windSpeed);
+}
 
-    public DewPoint()
+public class WindChillCalculator : IWindChill
+{
+    public ITemperature? Calculate(ITemperature temperature, double windSpeed)
     {
-
-    }
-
-    public DewPoint(double v)
-    {
-        this.Value = v;
-    }
-
-    public static DewPoint Calculate(Celsius t, RelativeHumidity rh, Pressure p)
-    {
-        double es = VaporPressure.Calculate(t);
-        double numerator = 237.3 * Math.Log((es * rh) / 611);
-        double denominator = 7.5 * Math.Log(10) - Math.Log((es * rh) / 611);
-        return new DewPoint(numerator / denominator);
+        if (temperature.ToFahrenheit().Value < 41)
+        {
+            double wc = 35.74 + (0.6215 * temperature.ToFahrenheit().Value) - (35.75 * Math.Pow(windSpeed, 0.16))
+                + (0.4275 * temperature.ToFahrenheit().Value * Math.Pow(windSpeed, 0.16));
+            return new Fahrenheit(wc);
+        }
+        else
+        {
+            return null;
+        }
     }
 }

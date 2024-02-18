@@ -1,29 +1,29 @@
 ﻿namespace MeteorologyCore;
 
+/// <summary>
+/// See: https://www.weather.gov/media/epz/wxcalc/vaporPressure.pdf
+/// </summary>
 public class VaporPressure
 {
-    public bool Saturated { get; private set; }
-    public Millibar Value { get; private set; }
+    public double Actual { get; private set; }
+    public double Saturated { get; private set; }
 
-    public VaporPressure(double v)
+    /// <summary>
+    /// Calculates vapor pressure from dew point and air temp.
+    /// </summary>
+    /// <param name="dewPointTemperature"></param>
+    /// <param name="airTemperature"></param>
+    /// <returns></returns>
+    public VaporPressure Calculate(Celsius dewPointTemperature, Celsius airTemperature)
     {
-        this.Value = v;
+        Actual    = Calculate(dewPointTemperature);
+        Saturated = Calculate(airTemperature);
+        return this;
     }
 
-    public static VaporPressure Calculate(Celsius t, DewPoint dt = null)
+    public double Calculate(Celsius temperature)
     {
-        double n = (7.5 * t) / (237.3 + t);
-        double es = 6.11 * Math.Pow(10, n);
-        return new VaporPressure(es);
-    }
-
-    public static implicit operator VaporPressure(double t)
-    {
-        return new VaporPressure(t);
-    }
-
-    public static implicit operator double(VaporPressure t)
-    {
-        return t.Value;
+        double n  = (7.5 * temperature.Value) / (237.3 + temperature.Value);
+        return 6.11 * Math.Pow(10, n);
     }
 }

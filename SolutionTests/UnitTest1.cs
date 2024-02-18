@@ -1,11 +1,21 @@
+using System.Globalization;
 using GeoJsonWeather.Stations;
 using GeoJsonWeather.Models;
 using GeoJsonWeather.Parsers;
+using MeteorologyCore;
+using Xunit.Abstractions;
 
 namespace SolutionTests;
 
 public class UnitTest1
 {
+    private readonly ITestOutputHelper _testOutputHelper;
+
+    public UnitTest1(ITestOutputHelper testOutputHelper)
+    {
+        _testOutputHelper = testOutputHelper;
+    }
+
     [Fact]
     public void ForecastPointTest()
     {
@@ -42,6 +52,24 @@ public class UnitTest1
         IJsonParser<ObservationStationModel> stationParser      = new ObservationStationParser(json);
         ObservationStationModel?                   observationStation = stationParser.GetItem();
 
+        Assert.NotNull(observationStation);
+    }
+
+    [Fact]
+    public void ObservationTest()
+    {
+        const string URL = "https://api.weather.gov/stations/KFDR/observations/latest";
+        
+        IApiRetreivable               api                = new WeatherApiRetriever(URL);
+        string                        json               = api.GetData().Result;
+        IJsonParser<ObservationModel> stationParser      = new ObservationParser(json);
+        ObservationModel?             observationStation = stationParser.GetItem();
+
+        _testOutputHelper.WriteLine(observationStation.Temperature.ToFahrenheit().ToString());
+        _testOutputHelper.WriteLine(observationStation.DewPoint.ToFahrenheit().ToString());
+        _testOutputHelper.WriteLine(observationStation.WindChill.ToFahrenheit().ToString());
+        _testOutputHelper.WriteLine(RelativeHumidityCalculator.ToString(observationStation.RelativeHumidity));
+        
         Assert.NotNull(observationStation);
     }
 }

@@ -1,13 +1,13 @@
-﻿namespace MeteorologyCore;
+﻿/*namespace MeteorologyCore;
 
 public interface IHeatIndexCalculator
 {
-    HeatIndex Calculate(Fahrenheit temperature, RelativeHumidity humidity);
+    HeatIndex Calculate(Fahrenheit temperature, RelativeHumidityCalculator humidityCalculator);
 }
 
 public interface IDewPointCalculator
 {
-    DewPoint Calculate(Celsius temperature, RelativeHumidity humidity, Pressure pressure);
+    DewPoint Calculate(Celsius temperature, RelativeHumidityCalculator humidityCalculator, Pressure pressure);
 }
 
 public interface IWindChillCalculator
@@ -17,13 +17,13 @@ public interface IWindChillCalculator
 
 public interface IHumidityCalculator
 {
-    RelativeHumidity Calculate(VaporPressure es, VaporPressure e);
+    RelativeHumidityCalculator Calculate(VaporPressure es, VaporPressure e);
 }
 
 public class MyHumidityCalculator : IHumidityCalculator
 {
-    public RelativeHumidity Calculate(VaporPressure es, VaporPressure e)
+    public RelativeHumidityCalculator Calculate(VaporPressure es, VaporPressure e)
     {
-        return new RelativeHumidity(es.Value + e.Value);
+        return new RelativeHumidityCalculator(es.Value + e.Value);
     }
-}
+}*/

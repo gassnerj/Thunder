@@ -189,7 +189,7 @@ namespace GeoJsonWeather
             }
         }
 
-        protected static DateTime ISO8601Parse(string dateTime)
+        internal protected static DateTime ISO8601Parse(string dateTime)
         {
             bool success = DateTime.TryParse(dateTime, out DateTime date);
             return success ? date : DateTime.Now;

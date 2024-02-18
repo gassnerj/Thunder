@@ -8,6 +8,10 @@ namespace MeteorologyCore
 {
     public interface ITemperature
     {
-        double Value { get; set; }
+        double Value { get; }
+
+        ITemperature ToCelsius();
+        ITemperature ToFahrenheit();
+        ITemperature ToKelvin();
     }
 }
