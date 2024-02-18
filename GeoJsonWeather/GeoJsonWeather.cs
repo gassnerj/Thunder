@@ -1,16 +1,12 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Collections.ObjectModel;
-using System.Data.Common;
-using System.Net.Sockets;
 using System.Text.Json;
-using System.Text.Json.Serialization;
-using NUnit.Framework;
+using GeoJsonWeather.Api;
 
 namespace GeoJsonWeather
 {
@@ -292,8 +288,23 @@ namespace GeoJsonWeather
 
     public class Coordinate
     {
-        public decimal Latitude { get; set; }
-        public decimal Longitude { get; set; }
+        public Coordinate()
+        {
+            
+        }
+        public Coordinate(string longitude, string latitude)
+        {
+            Latitude  = Convert.ToDecimal(latitude);
+            Longitude = Convert.ToDecimal(longitude);
+        }
+
+        public Coordinate(decimal longitude, decimal latitude)
+        {
+            Latitude  = latitude;
+            Longitude = longitude;
+        }
+        public decimal Latitude { get; init; }
+        public decimal Longitude { get; init; }
     }
 
     public class Alert : Feature, IAlert

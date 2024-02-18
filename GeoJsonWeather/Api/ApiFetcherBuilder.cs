@@ -1,4 +1,4 @@
-﻿namespace GeoJsonWeather;
+﻿namespace GeoJsonWeather.Api;
 
 public class ApiFetcherBuilder
 {

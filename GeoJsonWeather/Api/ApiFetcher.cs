@@ -1,6 +1,6 @@
 ﻿using System.Threading.Tasks;
 
-namespace GeoJsonWeather;
+namespace GeoJsonWeather.Api;
 
 public class ApiFetcher
 {

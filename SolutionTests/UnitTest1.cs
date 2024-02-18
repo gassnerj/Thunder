@@ -1,31 +1,47 @@
-using System.Security.Principal;
 using GeoJsonWeather.Stations;
-using GeoJsonWeather;
-using MeteorologyCore;
+using GeoJsonWeather.Models;
+using GeoJsonWeather.Parsers;
 
 namespace SolutionTests;
 
 public class UnitTest1
 {
     [Fact]
-    public void StationsNotEmptyTest()
+    public void ForecastPointTest()
     {
         const string URL = "https://api.weather.gov/points/33.9595,-98.6812";
 
-        IApiRetreivable forecastZone = new ForecastZone(URL);
-        string          zoneJson     = forecastZone.GetFromApi().Result;
+        IApiRetreivable                  forecastPoint = new WeatherApiRetriever(URL);
+        string                           pointJson     = forecastPoint.GetData().Result;
+        IJsonParser<ForecastPointModel> jsonParser    = new ForecastPointParser(pointJson);
+        ForecastPointModel                    pointModel         = jsonParser.GetItem();
 
-        IJsonParser<ForecastZone> zoneParser = new ForecastZoneJsonParser(zoneJson);
+        Assert.NotNull(pointModel);
+    }
 
-        // get zone url from zone api
+    [Fact]
+    public void ForecastZoneTest()
+    {
+        const string URL = "https://api.weather.gov/zones/forecast/TXZ086";
 
-        IApiRetreivable stations = new WeatherStations(@"https://api.weather.gov/stations");
-        string          json     = stations.GetFromApi().Result;
+        IApiRetreivable                 forecastZone = new WeatherApiRetriever(URL);
+        string                          zoneJson     = forecastZone.GetData().Result;
+        IJsonParser<ForecastZoneModel> zoneParser   = new ForecastZoneParser(zoneJson);
+        ForecastZoneModel                    zoneModel         = zoneParser.GetItem();
 
-        IJsonParser<WeatherStation> stationParser   = new WeatherStationsJsonParser(json);
-        var                         weatherStations = stationParser.GetItems<WeatherStation>();
+        Assert.NotNull(zoneModel);
+    }
 
+    [Fact]
+    public void ObservationStationTest()
+    {
+        const string URL = "https://api.weather.gov/stations/KFDR";
 
-        Assert.NotEmpty(weatherStations);
+        IApiRetreivable                       api           = new WeatherApiRetriever(URL);
+        string                                json               = api.GetData().Result;
+        IJsonParser<ObservationStationModel> stationParser      = new ObservationStationParser(json);
+        ObservationStationModel?                   observationStation = stationParser.GetItem();
+
+        Assert.NotNull(observationStation);
     }
 }

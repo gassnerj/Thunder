@@ -1,9 +1,8 @@
-﻿using Flurl.Http;
-using System;
-using System.Net.NetworkInformation;
+﻿using System;
 using System.Threading.Tasks;
+using Flurl.Http;
 
-namespace GeoJsonWeather
+namespace GeoJsonWeather.Api
 {
     public class WebData : IWebData
     {
