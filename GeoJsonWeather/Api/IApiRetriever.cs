@@ -1,6 +1,6 @@
 ﻿using System.Threading.Tasks;
 
-namespace GeoJsonWeather.Models;
+namespace GeoJsonWeather.Api;
 
 public interface IApiRetriever
 {

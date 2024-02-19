@@ -1,7 +1,7 @@
 ﻿using System;
 using GeoJsonWeather.Parsers;
 
-namespace GeoJsonWeather.Models;
+namespace GeoJsonWeather.Api;
 
 public class ApiManager
 {

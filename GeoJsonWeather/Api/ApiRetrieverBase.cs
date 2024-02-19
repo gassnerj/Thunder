@@ -1,7 +1,6 @@
 ﻿using System.Threading.Tasks;
-using GeoJsonWeather.Api;
 
-namespace GeoJsonWeather.Models;
+namespace GeoJsonWeather.Api;
 
 public abstract class ApiRetrieverBase : IApiRetriever
 {
