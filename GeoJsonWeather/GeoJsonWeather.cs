@@ -275,8 +275,8 @@ namespace GeoJsonWeather
         {
             return (from coordinate in coordinatesArray
                 from c in coordinate.EnumerateArray()
-                let latitude = c[0].GetDecimal()
-                let longitude = c[1].GetDecimal()
+                let latitude = c[0].GetDouble()
+                let longitude = c[1].GetDouble()
                 select new Coordinate() { Latitude = latitude, Longitude = longitude }).ToList();
         }
     }
@@ -294,17 +294,17 @@ namespace GeoJsonWeather
         }
         public Coordinate(string longitude, string latitude)
         {
-            Latitude  = Convert.ToDecimal(latitude);
-            Longitude = Convert.ToDecimal(longitude);
+            Latitude  = Convert.ToDouble(latitude);
+            Longitude = Convert.ToDouble(longitude);
         }
 
-        public Coordinate(decimal longitude, decimal latitude)
+        public Coordinate(double longitude, double latitude)
         {
             Latitude  = latitude;
             Longitude = longitude;
         }
-        public decimal Latitude { get; init; }
-        public decimal Longitude { get; init; }
+        public double Latitude { get; init; }
+        public double Longitude { get; init; }
     }
 
     public class Alert : Feature, IAlert

@@ -1,4 +1,5 @@
 using System.Globalization;
+using GeoJsonWeather;
 using GeoJsonWeather.Api;
 using GeoJsonWeather.Models;
 using GeoJsonWeather.Parsers;
@@ -73,5 +74,20 @@ public class UnitTest1
         _testOutputHelper.WriteLine(RelativeHumidityCalculator.ToString(model.RelativeHumidity));
 
         Assert.NotNull(model);
+    }
+
+    [Fact]
+    public void ObservationManagerTest()
+    {
+        ObservationModel? model = ObservationManager.GetNearestObservations(37.0821,-93.8489);
+        Assert.NotNull(model);
+
+        if (model is null)
+            return;
+        
+        _testOutputHelper.WriteLine(model.Temperature.ToFahrenheit().ToString());
+        _testOutputHelper.WriteLine(model.DewPoint.ToFahrenheit().ToString());
+        _testOutputHelper.WriteLine(model.WindChill?.ToFahrenheit()?.ToString() ?? "");
+        _testOutputHelper.WriteLine(RelativeHumidityCalculator.ToString(model.RelativeHumidity));
     }
 }

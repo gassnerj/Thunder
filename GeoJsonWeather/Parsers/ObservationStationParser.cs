@@ -17,8 +17,8 @@ public class ObservationStationParser : IJsonParser<ObservationStationModel>
             return new ObservationStationModel
             {
                 Id = jsonObject?["id"]?.ToString(),
-                Coordinates = new Coordinate(jsonObject?["geometry"]?["coordinates"]?[1]?.Value<string>(),
-                                             jsonObject?["geometry"]?["coordinates"]?[0]?.Value<string>()),
+                Coordinates = new Coordinate(jsonObject?["geometry"]?["coordinates"]?[0]?.Value<string>(),
+                                             jsonObject?["geometry"]?["coordinates"]?[1]?.Value<string>()),
                 Name              = jsonObject?["properties"]?["name"]?.Value<string>(),
                 StationIdentifier = jsonObject?["properties"]?["stationIdentifier"]?.Value<string>(),
                 TimeZone          = jsonObject?["properties"]?["timeZone"]?.Value<string>(),

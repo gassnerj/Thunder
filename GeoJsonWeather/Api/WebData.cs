@@ -15,7 +15,10 @@ namespace GeoJsonWeather.Api
         {
             try
             {
-                string responseString = await url.WithHeader("User-Agent", userAgent).GetStringAsync();
+                string responseString = await url
+                    .WithHeader("User-Agent", userAgent)
+                    .WithHeader("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
+                    .GetStringAsync();
                 return responseString;
             }
             catch (FlurlHttpException ex)

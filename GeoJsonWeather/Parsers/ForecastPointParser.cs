@@ -12,6 +12,10 @@ public class ForecastPointParser : IJsonParser<ForecastPointModel>
     {
         try
         {
+            if (string.IsNullOrEmpty(jsonString))
+            {
+                return null;
+            }
             var jsonObject = JsonConvert.DeserializeObject<JObject>(jsonString);
 
             return new ForecastPointModel()
