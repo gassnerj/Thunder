@@ -4,25 +4,18 @@ using Flurl.Http;
 
 namespace GeoJsonWeather.Api
 {
-    public class WebData : IWebData
+    public static class WebData
     {
-        private readonly string _url;
-
-        public WebData(string url)
+        public static async Task<string> SendHttpRequestAsync(string url)
         {
-            _url = url;
+            return await SendHttpRequestAsync("NoUserAgent", url);
         }
 
-        public async Task<string> SendHttpRequestAsync()
-        {
-            return await SendHttpRequestAsync("NoUserAgent");
-        }
-
-        public async Task<string> SendHttpRequestAsync(string userAgent)
+        public static async Task<string> SendHttpRequestAsync(string userAgent, string url)
         {
             try
             {
-                string responseString = await _url.WithHeader("User-Agent", userAgent).GetStringAsync();
+                string responseString = await url.WithHeader("User-Agent", userAgent).GetStringAsync();
                 return responseString;
             }
             catch (FlurlHttpException ex)

@@ -26,7 +26,7 @@ namespace ThunderApp
     public partial class MainWindow : Window
     {
         private GPS GPSLocation { get; set; }
-        private GeoCode GeoCode { get; set; }
+        private GeoCode GeoCode { get; set; } 
         private NMEA NMEA { get; set; } = null!;
         private IGeoCodeLocation _geoCodeLocation = null!;
         private Vmix _vmixLocation = null!;
@@ -71,7 +71,15 @@ namespace ThunderApp
                         await UpdateLocation(_vmixLocation);
             });
 
-            await Task.WhenAll(screenLoop, gpsLoop);
+            Task apiLoop = Task.Run(async () =>
+            {
+                while (await gpsTimer.WaitForNextTickAsync())
+                {
+                     
+                }
+            });
+
+            await Task.WhenAll(screenLoop, gpsLoop, apiLoop);
         }
 
         private void InitializeGPS()

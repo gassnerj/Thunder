@@ -8,16 +8,9 @@ namespace GeoJsonWeather.Parsers
 {
     public class ObservationParser : IJsonParser<ObservationModel>
     {
-        private readonly string _jsonString;
-
-        public ObservationParser(string jsonString)
+        public ObservationModel GetItem(string jsonString)
         {
-            _jsonString = jsonString;
-        }
-
-        public ObservationModel GetItem()
-        {
-            var jsonObject = JsonConvert.DeserializeObject<JObject>(_jsonString);
+            var jsonObject = JsonConvert.DeserializeObject<JObject>(jsonString);
 
             var          airTemperature      = Convert.ToDouble(jsonObject["properties"]?["temperature"]?["value"]?.ToString());
             var          dewPointTemperature = Convert.ToDouble(jsonObject["properties"]?["dewpoint"]?["value"]?.ToString());

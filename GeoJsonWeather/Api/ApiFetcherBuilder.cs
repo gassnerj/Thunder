@@ -1,4 +1,5 @@
-﻿namespace GeoJsonWeather.Api;
+﻿/*
+namespace GeoJsonWeather.Api;
 
 public class ApiFetcherBuilder
 {
@@ -12,7 +13,7 @@ public class ApiFetcherBuilder
     
     public ApiFetcher Build()
     {
-        var webData = new WebData(_url);
-        return new ApiFetcher(webData, _USER_AGENT);
+        return new ApiFetcher(_USER_AGENT, _url);
     }
 }
+*/

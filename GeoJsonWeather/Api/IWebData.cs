@@ -4,6 +4,6 @@ namespace GeoJsonWeather.Api;
 
 public interface IWebData
 {
-    Task<string> SendHttpRequestAsync();
-    Task<string> SendHttpRequestAsync(string userAgent);
+    Task<string> SendHttpRequestAsync(string url);
+    Task<string> SendHttpRequestAsync(string userAgent, string url);
 }

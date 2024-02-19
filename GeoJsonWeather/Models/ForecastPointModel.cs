@@ -5,7 +5,7 @@ using GeoJsonWeather.Stations;
 
 namespace GeoJsonWeather.Models;
 
-public class ForecastPointModel : IApiRetreivable
+public class ForecastPointModel
 {
     private readonly string _url;
     
@@ -34,11 +34,5 @@ public class ForecastPointModel : IApiRetreivable
     internal protected ForecastPointModel()
     {
         
-    }
-
-    public async Task<string> GetData()
-    {
-        ApiFetcher apiFetcher = new ApiFetcherBuilder(_url).Build();
-        return await apiFetcher.FetchData();
     }
 }

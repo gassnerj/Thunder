@@ -9,19 +9,12 @@ namespace GeoJsonWeather.Parsers;
 
 public class ForecastZoneParser : IJsonParser<ForecastZoneModel>
 {
-    private readonly string _jsonString;
-
-    public ForecastZoneParser(string jsonString)
-    {
-        _jsonString = jsonString;
-    }
-
-    public ForecastZoneModel GetItem()
+    public ForecastZoneModel GetItem(string jsonString)
     {
         try
         {
-            var jsonObject = JsonConvert.DeserializeObject<JObject>(_jsonString);
-            var stations   = jsonObject["properties"]?["observationStations"]?.Select(item => Extensions.Value<string>(item)).ToList();
+            var jsonObject = JsonConvert.DeserializeObject<JObject>(jsonString);
+            var stations   = jsonObject["properties"]?["observationStations"]?.Select(item => item.Value<string>()).ToList();
 
             return new ForecastZoneModel()
             {

@@ -8,18 +8,11 @@ namespace GeoJsonWeather.Parsers;
 
 public class ForecastPointParser : IJsonParser<ForecastPointModel>
 {
-    private readonly string _jsonString;
-    
-    public ForecastPointParser(string jsonString)
-    {
-        _jsonString = jsonString;
-    }
-    
-    public ForecastPointModel GetItem()
+    public ForecastPointModel GetItem(string jsonString)
     {
         try
         {
-            var jsonObject = JsonConvert.DeserializeObject<JObject>(_jsonString);
+            var jsonObject = JsonConvert.DeserializeObject<JObject>(jsonString);
 
             return new ForecastPointModel()
             {

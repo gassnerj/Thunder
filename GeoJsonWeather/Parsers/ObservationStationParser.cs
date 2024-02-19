@@ -9,18 +9,11 @@ namespace GeoJsonWeather.Parsers;
 
 public class ObservationStationParser : IJsonParser<ObservationStationModel>
 {
-    private readonly string _jsonString;
-
-    public ObservationStationParser(string jsonString)
-    {
-        _jsonString = jsonString;
-    }
-
-    public ObservationStationModel GetItem()
+    public ObservationStationModel GetItem(string jsonString)
     {
         try
         {
-            var jsonObject = JsonConvert.DeserializeObject<JObject>(_jsonString);
+            var jsonObject = JsonConvert.DeserializeObject<JObject>(jsonString);
 
             return new ObservationStationModel
             {

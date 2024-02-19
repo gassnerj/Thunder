@@ -1,4 +1,5 @@
 using System.Globalization;
+using GeoJsonWeather.Api;
 using GeoJsonWeather.Stations;
 using GeoJsonWeather.Models;
 using GeoJsonWeather.Parsers;
@@ -21,12 +22,12 @@ public class UnitTest1
     {
         const string URL = "https://api.weather.gov/points/33.9595,-98.6812";
 
-        IApiRetreivable                  forecastPoint = new WeatherApiRetriever(URL);
-        string                           pointJson     = forecastPoint.GetData().Result;
-        IJsonParser<ForecastPointModel> jsonParser    = new ForecastPointParser(pointJson);
-        ForecastPointModel                    pointModel         = jsonParser.GetItem();
+        var                 apiFetcher = new ApiFetcher(string.Empty, URL);
+        var                 apiManager = new ApiManager(apiFetcher);
+        var                 apiParser  = new ForecastPointParser();
+        ForecastPointModel? model      = apiManager.GetModel(apiParser);
 
-        Assert.NotNull(pointModel);
+        Assert.NotNull(model);
     }
 
     [Fact]
@@ -34,12 +35,12 @@ public class UnitTest1
     {
         const string URL = "https://api.weather.gov/zones/forecast/TXZ086";
 
-        IApiRetreivable                 forecastZone = new WeatherApiRetriever(URL);
-        string                          zoneJson     = forecastZone.GetData().Result;
-        IJsonParser<ForecastZoneModel> zoneParser   = new ForecastZoneParser(zoneJson);
-        ForecastZoneModel                    zoneModel         = zoneParser.GetItem();
+        var                 apiFetcher = new ApiFetcher(string.Empty, URL);
+        var                 apiManager = new ApiManager(apiFetcher);
+        var                 apiParser  = new ForecastZoneParser();
+        ForecastZoneModel? model      = apiManager.GetModel(apiParser);
 
-        Assert.NotNull(zoneModel);
+        Assert.NotNull(model);
     }
 
     [Fact]
@@ -47,29 +48,31 @@ public class UnitTest1
     {
         const string URL = "https://api.weather.gov/stations/KFDR";
 
-        IApiRetreivable                       api           = new WeatherApiRetriever(URL);
-        string                                json               = api.GetData().Result;
-        IJsonParser<ObservationStationModel> stationParser      = new ObservationStationParser(json);
-        ObservationStationModel?                   observationStation = stationParser.GetItem();
+        var                apiFetcher = new ApiFetcher(string.Empty, URL);
+        var                apiManager = new ApiManager(apiFetcher);
+        var                apiParser  = new ObservationStationParser();
+        ObservationStationModel? model      = apiManager.GetModel(apiParser);
 
-        Assert.NotNull(observationStation);
+        Assert.NotNull(model);
     }
 
     [Fact]
     public void ObservationTest()
     {
         const string URL = "https://api.weather.gov/stations/KFDR/observations/latest";
-        
-        IApiRetreivable               api                = new WeatherApiRetriever(URL);
-        string                        json               = api.GetData().Result;
-        IJsonParser<ObservationModel> stationParser      = new ObservationParser(json);
-        ObservationModel?             observationStation = stationParser.GetItem();
 
-        _testOutputHelper.WriteLine(observationStation.Temperature.ToFahrenheit().ToString());
-        _testOutputHelper.WriteLine(observationStation.DewPoint.ToFahrenheit().ToString());
-        _testOutputHelper.WriteLine(observationStation.WindChill.ToFahrenheit().ToString());
-        _testOutputHelper.WriteLine(RelativeHumidityCalculator.ToString(observationStation.RelativeHumidity));
+        var                apiFetcher = new ApiFetcher(string.Empty, URL);
+        var                apiManager = new ApiManager(apiFetcher);
+        var                apiParser  = new ObservationParser();
+        ObservationModel? model      = apiManager.GetModel(apiParser);
+
         
-        Assert.NotNull(observationStation);
+
+        _testOutputHelper.WriteLine(model.Temperature.ToFahrenheit().ToString());
+        _testOutputHelper.WriteLine(model.DewPoint.ToFahrenheit().ToString());
+        _testOutputHelper.WriteLine(model.WindChill?.ToFahrenheit()?.ToString() ?? "");
+        _testOutputHelper.WriteLine(RelativeHumidityCalculator.ToString(model.RelativeHumidity));
+
+        Assert.NotNull(model);
     }
 }

@@ -68,7 +68,7 @@ namespace GeoJsonWeather
 
         public async Task FetchData(string url)
         {
-            NewAlertCount = 0;
+            /*NewAlertCount = 0;
             OnAlertMessage(new AlertMessageEventArgs($"Fetching alerts..."));
 
             ApiFetcher apiFetcher   = new ApiFetcherBuilder(url).Build();
@@ -86,7 +86,7 @@ namespace GeoJsonWeather
             lock (Alerts)
             {
                 _runCount++;
-            }
+            }*/
         }
 
 

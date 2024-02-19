@@ -2,5 +2,5 @@
 
 public interface IJsonParser<T>
 {
-    T GetItem();
+    T GetItem(string jsonString);
 }
