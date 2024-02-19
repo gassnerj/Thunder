@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Drawing;
+using System.Drawing.Drawing2D;
 
 namespace GeoJsonWeather;
 
@@ -27,4 +29,24 @@ public static class GeoHelper
     {
         return angleInDegrees * Math.PI / 180.0;
     }
+    
+    public static bool IsPointInPolygon(double latitude, double longitude, List<Coordinate> polygon)
+    {
+        int i, j     = polygon.Count - 1;
+        var oddNodes = false;
+
+        for (i = 0; i < polygon.Count; i++)
+        {
+            if ((polygon[i].Longitude < longitude && polygon[j].Longitude >= longitude || polygon[j].Longitude < longitude && polygon[i].Longitude >= longitude)
+                && (polygon[i].Latitude <= latitude || polygon[j].Latitude <= latitude))
+            {
+                oddNodes ^= (polygon[i].Latitude + (longitude - polygon[i].Longitude) / (polygon[j].Longitude - polygon[i].Longitude) * (polygon[j].Latitude - polygon[i].Latitude) < latitude);
+            }
+
+            j = i;
+        }
+
+        return oddNodes;
+    }
+
 }

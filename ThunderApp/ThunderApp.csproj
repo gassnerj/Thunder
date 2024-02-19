@@ -8,9 +8,14 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\GeoJsonWeather\GeoJsonWeather.csproj" />
     <ProjectReference Include="..\GPSData\GPSData.csproj" />
     <ProjectReference Include="..\GPSLocation\GPSLocation.csproj" />
     <ProjectReference Include="..\vMixController\vMixController.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="LiveCharts.Wpf" Version="0.9.7" />
   </ItemGroup>
 
 </Project>

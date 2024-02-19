@@ -1,22 +1,18 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
 using System.Windows.Threading;
+using GeoJsonWeather;
+using GeoJsonWeather.Models;
 using GPSData;
 using vMixLib;
+using GeoCode = GPSData.GeoCode;
+using LiveCharts;
+using LiveCharts.Wpf;
+using MeteorologyCore;
 
 namespace ThunderApp
 {
@@ -32,12 +28,48 @@ namespace ThunderApp
         private Vmix _vmixLocation = null!;
         private string SerialPortName { get; set; } = "COM5";
 
+        private SeriesCollection _seriesCollection;
+        private List<double> temperatureData;
+        private List<double> dewPointData;
+        private List<double> windData;
+
         public MainWindow()
         {
             InitializeComponent();
+            InitializeChart();
             Title = "GPS Monitor";
             InitializeGPS();
             Loaded += MainWindow_Loaded;
+        }
+        
+        
+        private void InitializeChart()
+        {
+            temperatureData = new List<double>();
+            dewPointData    = new List<double>();
+            windData        = new List<double>();
+            
+            _seriesCollection = new SeriesCollection()
+            {
+                new LineSeries
+                {
+                    Title  = "Temperature",
+                    Values = new ChartValues<double>(), // Data for the series
+                },
+                new LineSeries
+                {
+                    Title = "Dew Point",
+                    Values = new ChartValues<double>()
+                },
+                new LineSeries
+                {
+                    Title = "Wind Speed",
+                    Values = new ChartValues<double>()
+                }
+            };
+
+            DataChart.Series         = _seriesCollection;
+            DataChart.LegendLocation = LegendLocation.Right;
         }
 
         private  void MainWindow_Loaded(object sender, RoutedEventArgs e)
@@ -53,7 +85,8 @@ namespace ThunderApp
 
             var gpsTimer    = new PeriodicTimer(TimeSpan.FromMinutes(1));
             var screenTimer = new PeriodicTimer(TimeSpan.FromSeconds(1));
-
+            var apiTimer = new PeriodicTimer(TimeSpan.FromMinutes(1));
+            
             Task screenLoop = Task.Run(async () =>
             {
                 while (await screenTimer.WaitForNextTickAsync())
@@ -73,9 +106,28 @@ namespace ThunderApp
 
             Task apiLoop = Task.Run(async () =>
             {
-                while (await gpsTimer.WaitForNextTickAsync())
+                while (await apiTimer.WaitForNextTickAsync())
                 {
-                     
+                    await foreach (ObservationModel? model in ObservationManager.GetNearestObservations(33.9595, -98.6812))
+                    {
+                        if (model is null)
+                            return;
+                        Dispatcher.Invoke(() =>
+                        {
+                            AirTemperature.Text = model.Temperature.ToFahrenheit().ToString();
+                            DewPoint.Text       = model.Temperature.ToFahrenheit().ToString();
+                            Wind.Text           = $"{Math.Round(model.Wind.Speed)} ({model.Wind.Direction})";
+                            LastUpdate.Text     = DateTime.Now.ToString(CultureInfo.CurrentCulture);
+
+                            temperatureData.Add(model.Temperature.ToFahrenheit().Value);
+                            dewPointData.Add(model.Temperature.ToFahrenheit().Value);
+                            windData.Add(model.Wind.Speed);
+                            
+                            _seriesCollection[0].Values = new ChartValues<double>(temperatureData);
+                            _seriesCollection[1].Values = new ChartValues<double>(dewPointData);
+                            _seriesCollection[2].Values = new ChartValues<double>(windData);
+                        });
+                    }
                 }
             });
 

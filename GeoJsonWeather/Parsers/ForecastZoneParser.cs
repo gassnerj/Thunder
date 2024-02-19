@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using GeoJsonWeather.Models;
 using Newtonsoft.Json;
@@ -24,6 +25,7 @@ public class ForecastZoneParser : IJsonParser<ForecastZoneModel>
                 CWA                    = jsonObject?["properties"]?["cwa"]?[0]?.Value<string>(),
                 ForecastOfficeUrl      = jsonObject?["properties"]?["forecastOffices"]?[0]?.Value<string>(),
                 TimeZone               = jsonObject?["properties"]?["timeZone"]?[0]?.Value<string>(),
+                ZonePolygonCoordinates = ParseCoordinates(jsonObject["geometry"]?["coordinates"]?[0]),
                 ObservationStationUrls = stations
             };
         }
@@ -32,5 +34,18 @@ public class ForecastZoneParser : IJsonParser<ForecastZoneModel>
             Console.WriteLine(ex.Message);
         }
         return null;
+    }
+
+    private List<Coordinate> ParseCoordinates(JToken jToken)
+    {
+        var coordinates = new List<Coordinate>();
+        
+        foreach (JToken coordinate in jToken)
+        {
+            var latitude  = Convert.ToDouble(coordinate[0]);
+            var longitude = Convert.ToDouble(coordinate[1]);
+            coordinates.Add(new Coordinate(latitude, longitude));            
+        }
+        return coordinates;
     }
 }

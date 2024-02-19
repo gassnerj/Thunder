@@ -1,6 +1,7 @@
 ﻿#nullable enable
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using GeoJsonWeather.Api;
 using GeoJsonWeather.Models;
 using GeoJsonWeather.Parsers;
@@ -10,7 +11,7 @@ namespace GeoJsonWeather;
 public class ObservationManager
 {
 
-    public static ObservationModel? GetNearestObservations(double latitude, double longitude)
+    public static async IAsyncEnumerable<ObservationModel?> GetNearestObservations(double latitude, double longitude)
     {
         var url = $"https://api.weather.gov/points/{latitude},{longitude}";
 
@@ -20,7 +21,7 @@ public class ObservationManager
         ForecastPointModel? model      = apiManager.GetModel(apiParser);
 
         if (model is null)
-            return null;
+            yield return null;
 
         var                zoneApiFetcher = new ApiFetcher(string.Empty, model.ZoneUrl);
         var                zoneApiManager = new ApiManager(zoneApiFetcher);
@@ -29,7 +30,7 @@ public class ObservationManager
 
         if (zoneModel.ObservationStationUrls.Count == 0)
         {
-            return null;
+            yield return null;
         }
 
         var observationStationModels = new List<ObservationStationModel>();
@@ -43,14 +44,19 @@ public class ObservationManager
             observationStationModels.Add(stationModel);
         }
 
-        ObservationStationModel nearestStation = FindNearestStation(latitude, longitude, observationStationModels);
+        while (GeoHelper.IsPointInPolygon(latitude, longitude, zoneModel.ZonePolygonCoordinates))
+        {
+            await Task.Delay(60000);
+            
+            ObservationStationModel nearestStation = FindNearestStation(latitude, longitude, observationStationModels);
 
-        var nearestStationUrl = $"https://api.weather.gov/stations/{nearestStation.StationIdentifier}/observations/latest";
+            var nearestStationUrl = $"https://api.weather.gov/stations/{nearestStation.StationIdentifier}/observations/latest";
 
-        var observationApiFetcher = new ApiFetcher(string.Empty, nearestStationUrl);
-        var observationApiManager = new ApiManager(observationApiFetcher);
-        var observationApiParser  = new ObservationParser();
-        return observationApiManager.GetModel(observationApiParser);
+            var observationApiFetcher = new ApiFetcher(string.Empty, nearestStationUrl);
+            var observationApiManager = new ApiManager(observationApiFetcher);
+            var observationApiParser  = new ObservationParser();
+            yield return observationApiManager.GetModel(observationApiParser);
+        }
     }
 
     private static ObservationStationModel FindNearestStation(double targetLatitude, double targetLongitude, List<ObservationStationModel> stations)

@@ -4,6 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:ThunderApp"
+        xmlns:wpf="clr-namespace:LiveCharts.Wpf;assembly=LiveCharts.Wpf"
         mc:Ignorable="d"
         Title="MainWindow" Height="Auto" Width="Auto">
     <Grid>
@@ -24,77 +25,78 @@
 
         <!-- TabControl -->
         <TabControl Grid.Row="1">
-<TabItem Header="GPS">
-    <Grid Margin="5, 0, 0, 0">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
+            <TabItem Header="GPS">
+                <Grid Margin="5, 0, 0, 0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
 
-        <Grid>
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-            </Grid.RowDefinitions>
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
 
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="100" /> <!-- Column for Labels -->
-                <ColumnDefinition Width="200" />    <!-- Column for Values -->
-                <ColumnDefinition Width="400" /> <!-- Column for the black text box -->
-            </Grid.ColumnDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="100" /> <!-- Column for Labels -->
+                            <ColumnDefinition Width="200" />    <!-- Column for Values -->
+                            <ColumnDefinition Width="400" /> <!-- Column for the black text box -->
+                        </Grid.ColumnDefinitions>
 
-            <!-- Latitude -->
-            <TextBlock Grid.Column="0" Grid.Row="0" Text="Coordinates:" />
-            <TextBlock Grid.Column="1" Grid.Row="0" Name="Coordinates" Text="" />
-            <TextBox Text="Click 'Start GPS' to begin." BorderBrush="Black" BorderThickness="1" Background="Black"
-                     Foreground="White" Grid.Row="0" Grid.Column="2" Name="LogTextBox" Grid.RowSpan="15">
-            </TextBox>
+                        <!-- Latitude -->
+                        <TextBlock Grid.Column="0" Grid.Row="0" Text="Coordinates:" />
+                        <TextBlock Grid.Column="1" Grid.Row="0" Name="Coordinates" Text="" />
+                        <TextBox Text="Click 'Start GPS' to begin." BorderBrush="Black" BorderThickness="1"
+                                 Background="Black"
+                                 Foreground="White" Grid.Row="0" Grid.Column="2" Name="LogTextBox" Grid.RowSpan="15">
+                        </TextBox>
 
-            <!-- Longitude -->
-            <TextBlock Grid.Column="0" Grid.Row="1" Text="Speed:" />
-            <TextBlock Grid.Column="1" Grid.Row="1" Name="Speed" Text="" />
+                        <!-- Longitude -->
+                        <TextBlock Grid.Column="0" Grid.Row="1" Text="Speed:" />
+                        <TextBlock Grid.Column="1" Grid.Row="1" Name="Speed" Text="" />
 
-            <!-- Altimeter -->
-            <TextBlock Grid.Column="0" Grid.Row="2" Text="Altimeter:" />
-            <TextBlock Grid.Column="1" Grid.Row="2" Name="Altimeter" Text="" />
+                        <!-- Altimeter -->
+                        <TextBlock Grid.Column="0" Grid.Row="2" Text="Altimeter:" />
+                        <TextBlock Grid.Column="1" Grid.Row="2" Name="Altimeter" Text="" />
 
-            <!-- Road -->
-            <TextBlock Grid.Column="0" Grid.Row="3" Text="Road:" />
-            <TextBlock Grid.Column="1" Grid.Row="3" Name="Road" Text="" />
+                        <!-- Road -->
+                        <TextBlock Grid.Column="0" Grid.Row="3" Text="Road:" />
+                        <TextBlock Grid.Column="1" Grid.Row="3" Name="Road" Text="" />
 
-            <!-- City -->
-            <TextBlock Grid.Column="0" Grid.Row="4" Text="City:" />
-            <TextBlock Grid.Column="1" Grid.Row="4" Name="City" Text="" />
+                        <!-- City -->
+                        <TextBlock Grid.Column="0" Grid.Row="4" Text="City:" />
+                        <TextBlock Grid.Column="1" Grid.Row="4" Name="City" Text="" />
 
-            <!-- County -->
-            <TextBlock Grid.Column="0" Grid.Row="5" Text="County:" />
-            <TextBlock Grid.Column="1" Grid.Row="5" Name="County" Text="" />
+                        <!-- County -->
+                        <TextBlock Grid.Column="0" Grid.Row="5" Text="County:" />
+                        <TextBlock Grid.Column="1" Grid.Row="5" Name="County" Text="" />
 
-            <!-- State -->
-            <TextBlock Grid.Column="0" Grid.Row="6" Text="State:" />
-            <TextBlock Grid.Column="1" Grid.Row="6" Name="State" Text="" />
-        </Grid>
+                        <!-- State -->
+                        <TextBlock Grid.Column="0" Grid.Row="6" Text="State:" />
+                        <TextBlock Grid.Column="1" Grid.Row="6" Name="State" Text="" />
+                    </Grid>
 
-        <StackPanel Grid.Row="1" HorizontalAlignment="Left" Margin="0, 10, 0, 0">
-            <Button Name="StartGPS" Click="StartGPS_OnClick" Margin="0, 0, 0, 5">Start GPS</Button>
-            <Button Name="StopGPS" Click="StopGPS_OnClick">Stop GPS</Button>
-        </StackPanel>
-    </Grid>
-</TabItem>
+                    <StackPanel Grid.Row="1" HorizontalAlignment="Left" Margin="0, 10, 0, 0">
+                        <Button Name="StartGPS" Click="StartGPS_OnClick" Margin="0, 0, 0, 5">Start GPS</Button>
+                        <Button Name="StopGPS" Click="StopGPS_OnClick">Stop GPS</Button>
+                    </StackPanel>
+                </Grid>
+            </TabItem>
 
 
             <TabItem Header="Weather Station">
@@ -102,16 +104,44 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
+    
+                    <GroupBox Header="Observations" Grid.Row="0">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
 
-                    <GroupBox Header="Group Box 3" Grid.Row="0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
 
-                    </GroupBox>
+                            <Label Grid.Row="0" Grid.Column="0">Temp:</Label>
+                            <TextBlock Grid.Row="0" Grid.Column="1" Name="AirTemperature" Text=""></TextBlock>
 
-                    <GroupBox Header="Group Box 4" Grid.Row="1">
-                        <!-- Content of Group Box 4 goes here -->
+                            <Label Grid.Row="1" Grid.Column="0">Dew Point:</Label>
+                            <TextBlock Grid.Row="1" Grid.Column="1" Name="DewPoint" Text=""></TextBlock>
+
+                            <Label Grid.Row="2" Grid.Column="0">Wind:</Label>
+                            <TextBlock Grid.Row="2" Grid.Column="1" Name="Wind" Text=""></TextBlock>
+
+                            <Label Grid.Row="3" Grid.Column="0">Last Update:</Label>
+                            <TextBlock Grid.Row="3" Grid.Column="1" Name="LastUpdate" Text=""></TextBlock>
+                            
+                            <wpf:CartesianChart Grid.Row="0" Grid.RowSpan="4" Grid.Column="2" Name="DataChart" />
+                        </Grid>
                     </GroupBox>
                 </Grid>
+
+
             </TabItem>
         </TabControl>
 

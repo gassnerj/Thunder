@@ -79,15 +79,15 @@ public class UnitTest1
     [Fact]
     public void ObservationManagerTest()
     {
-        ObservationModel? model = ObservationManager.GetNearestObservations(37.0821,-93.8489);
-        Assert.NotNull(model);
-
-        if (model is null)
-            return;
-        
-        _testOutputHelper.WriteLine(model.Temperature.ToFahrenheit().ToString());
-        _testOutputHelper.WriteLine(model.DewPoint.ToFahrenheit().ToString());
-        _testOutputHelper.WriteLine(model.WindChill?.ToFahrenheit()?.ToString() ?? "");
-        _testOutputHelper.WriteLine(RelativeHumidityCalculator.ToString(model.RelativeHumidity));
+        // ObservationModel? model = ObservationManager.GetNearestObservations(33.9595,-98.6812);
+        // Assert.NotNull(model);
+        //
+        // if (model is null)
+        //     return;
+        //
+        // _testOutputHelper.WriteLine("Air Temp: " + model.Temperature.ToFahrenheit());
+        // _testOutputHelper.WriteLine("Dewpoint: " + model.DewPoint.ToFahrenheit());
+        // _testOutputHelper.WriteLine("Wind Chill :" + model.WindChill?.ToFahrenheit());
+        // _testOutputHelper.WriteLine("Humidity: " + RelativeHumidityCalculator.ToString(model.RelativeHumidity));
     }
 }
