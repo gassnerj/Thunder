@@ -1,6 +1,5 @@
 using System.Globalization;
 using GeoJsonWeather.Api;
-using GeoJsonWeather.Stations;
 using GeoJsonWeather.Models;
 using GeoJsonWeather.Parsers;
 using MeteorologyCore;

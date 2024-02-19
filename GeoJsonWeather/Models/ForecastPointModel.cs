@@ -1,7 +1,6 @@
 ﻿using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using GeoJsonWeather.Api;
-using GeoJsonWeather.Stations;
 
 namespace GeoJsonWeather.Models;
 

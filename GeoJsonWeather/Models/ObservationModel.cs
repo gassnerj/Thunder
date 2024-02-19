@@ -1,11 +1,11 @@
 ﻿using System;
 using System.Threading.Tasks;
-using GeoJsonWeather.Stations;
+using GeoJsonWeather.Api;
 using MeteorologyCore;
 
 namespace GeoJsonWeather.Models;
 
-public class ObservationModel : IApiRetreivable
+public class ObservationModel
 {
     public ITemperature Temperature { get; set; }
     public ITemperature HeatIndex { get; set; }
@@ -16,8 +16,4 @@ public class ObservationModel : IApiRetreivable
     public Pressure BarometricPressure { get; set; }
     public Pressure SeaLevelPressure { get; set; }
     public DateTime Timestamp { get; set; }
-    public Task<string> GetData()
-    {
-        throw new NotImplementedException();
-    }
 }

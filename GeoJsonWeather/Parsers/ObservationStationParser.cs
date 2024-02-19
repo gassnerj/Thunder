@@ -1,6 +1,5 @@
 ﻿using System;
 using GeoJsonWeather.Models;
-using GeoJsonWeather.Stations;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using JsonException = System.Text.Json.JsonException;

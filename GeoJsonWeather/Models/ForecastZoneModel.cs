@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using GeoJsonWeather.Api;
 using GeoJsonWeather.Parsers;
-using GeoJsonWeather.Stations;
 
 namespace GeoJsonWeather.Models;
 
