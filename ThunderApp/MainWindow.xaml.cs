@@ -4,7 +4,6 @@ using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Threading;
 using GeoJsonWeather;
 using GeoJsonWeather.Models;
 using GPSData;
@@ -12,106 +11,85 @@ using vMixLib;
 using GeoCode = GPSData.GeoCode;
 using LiveCharts;
 using LiveCharts.Wpf;
-using MeteorologyCore;
 
 namespace ThunderApp
 {
     /// <summary>
     /// Interaction logic for MainWindow.xaml
     /// </summary>
-    public partial class MainWindow : Window
+    public partial class MainWindow
     {
-        private GPS GPSLocation { get; set; }
-        private GeoCode GeoCode { get; set; } 
+        private GPS GPSLocation { get; set; } = new GPS("COM5");
+        private GeoCode GeoCode { get; set; } = new GeoCode("AIzaSyC_opo2I9Fs8dYeVe_FPHTWlNCYpzNX3F4");
         private NMEA NMEA { get; set; } = null!;
         private IGeoCodeLocation _geoCodeLocation = null!;
         private Vmix _vmixLocation = null!;
         private string SerialPortName { get; set; } = "COM5";
 
-        private SeriesCollection _seriesCollection;
-        private List<double> temperatureData;
-        private List<double> dewPointData;
-        private List<double> windData;
+        private SeriesCollection? _seriesCollection;
+        private List<double>? _temperatureData;
+        private List<double>? _dewPointData;
+        private List<double>? _windData;
 
         public MainWindow()
         {
             InitializeComponent();
             InitializeChart();
-            Title = "GPS Monitor";
             InitializeGPS();
-            Loaded += MainWindow_Loaded;
+            Title = "GPS Monitor";
+            Loaded += async (_, _) => await InitializeAsync();
         }
-        
-        
+
         private void InitializeChart()
         {
-            temperatureData = new List<double>();
-            dewPointData    = new List<double>();
-            windData        = new List<double>();
-            
+            StopGPS.IsEnabled = false;
+
+            _temperatureData = new List<double>();
+            _dewPointData = new List<double>();
+            _windData = new List<double>();
+
             _seriesCollection = new SeriesCollection()
             {
-                new LineSeries
-                {
-                    Title  = "Temperature",
-                    Values = new ChartValues<double>(), // Data for the series
-                },
-                new LineSeries
-                {
-                    Title = "Dew Point",
-                    Values = new ChartValues<double>()
-                },
-                new LineSeries
-                {
-                    Title = "Wind Speed",
-                    Values = new ChartValues<double>()
-                }
+                new LineSeries { Title = "Temperature", Values = new ChartValues<double>(_temperatureData) },
+                new LineSeries { Title = "Dew Point", Values = new ChartValues<double>(_dewPointData) },
+                new LineSeries { Title = "Wind Speed", Values = new ChartValues<double>(_windData) }
             };
 
-            DataChart.Series         = _seriesCollection;
+            DataChart.Series = _seriesCollection;
             DataChart.LegendLocation = LegendLocation.Right;
-        }
-
-        private  void MainWindow_Loaded(object sender, RoutedEventArgs e)
-        {
-            _ = InitializeAsync();
         }
 
         private async Task InitializeAsync()
         {
-            var  vmixFactory = new VmixFactory();
-            Vmix vmix        = vmixFactory.CreateInstance("3fcd6206-79ff-4d05-a4fc-3a9ac7fd9752", "Message.Text");
+            var vmixFactory = new VmixFactory();
+            Vmix vmix = vmixFactory.CreateInstance("3fcd6206-79ff-4d05-a4fc-3a9ac7fd9752", "Message.Text");
             _vmixLocation = vmixFactory.CreateInstance("37b08594-3866-40c2-8fe4-064391bf0509", "Description.Text");
 
-            var gpsTimer    = new PeriodicTimer(TimeSpan.FromMinutes(1));
+            var gpsTimer = new PeriodicTimer(TimeSpan.FromMinutes(1));
             var screenTimer = new PeriodicTimer(TimeSpan.FromSeconds(1));
             var apiTimer = new PeriodicTimer(TimeSpan.FromMinutes(1));
-            
-            Task screenLoop = Task.Run(async () =>
-            {
-                while (await screenTimer.WaitForNextTickAsync())
-                {
-                    vmix.Value = DateTime.Now.ToString(CultureInfo.CurrentCulture);
-                    string url = vmix.UpdateUrl();
-                    await Vmix.SendRequest(url);
-                }
-            });
 
-            Task gpsLoop = Task.Run(async () =>
+            await Task.WhenAll(ScreenLoop(), GpsLoop(), ApiLoop());
+            return;
+
+            async Task GpsLoop()
             {
                 while (await gpsTimer.WaitForNextTickAsync())
+                {
                     if (NMEA.Speed > -1)
                         await UpdateLocation(_vmixLocation);
-            });
+                }
+            }
 
-            Task apiLoop = Task.Run(async () =>
+            async Task ApiLoop()
             {
                 while (await apiTimer.WaitForNextTickAsync())
                 {
-                    await foreach (ObservationModel? model in ObservationManager.GetNearestObservations(33.9595, -98.6812))
+                    await foreach (ObservationModel? model in ObservationManager.GetNearestObservations(NMEA.Latitude, NMEA.Longitude))
                     {
                         if (model is null)
                             return;
+
                         Dispatcher.Invoke(() =>
                         {
                             AirTemperature.Text = model.Temperature.ToFahrenheit().ToString();
@@ -119,19 +97,30 @@ namespace ThunderApp
                             Wind.Text           = $"{Math.Round(model.Wind.Speed)} ({model.Wind.Direction})";
                             LastUpdate.Text     = DateTime.Now.ToString(CultureInfo.CurrentCulture);
 
-                            temperatureData.Add(model.Temperature.ToFahrenheit().Value);
-                            dewPointData.Add(model.Temperature.ToFahrenheit().Value);
-                            windData.Add(model.Wind.Speed);
+                            _temperatureData?.Add(model.Temperature.ToFahrenheit().Value);
+                            _dewPointData?.Add(model.Temperature.ToFahrenheit().Value);
+                            _windData?.Add(model.Wind.Speed);
+
+                            if (_seriesCollection == null)
+                                return;
                             
-                            _seriesCollection[0].Values = new ChartValues<double>(temperatureData);
-                            _seriesCollection[1].Values = new ChartValues<double>(dewPointData);
-                            _seriesCollection[2].Values = new ChartValues<double>(windData);
+                            _seriesCollection[0].Values = new ChartValues<double>(_temperatureData);
+                            _seriesCollection[1].Values = new ChartValues<double>(_dewPointData);
+                            _seriesCollection[2].Values = new ChartValues<double>(_windData);
                         });
                     }
                 }
-            });
+            }
 
-            await Task.WhenAll(screenLoop, gpsLoop, apiLoop);
+            async Task ScreenLoop()
+            {
+                while (await screenTimer.WaitForNextTickAsync())
+                {
+                    vmix.Value = DateTime.Now.ToString(CultureInfo.CurrentCulture);
+                    string url = vmix.UpdateUrl();
+                    await Vmix.SendRequest(url);
+                }
+            }
         }
 
         private void InitializeGPS()
@@ -143,14 +132,13 @@ namespace ThunderApp
             GeoCode = new GeoCode("AIzaSyC_opo2I9Fs8dYeVe_FPHTWlNCYpzNX3F4");
         }
 
-        private async void GPSLocation_MessageReceived(object? sender, GPSMessageEventArgs e)
+        private void GPSLocation_MessageReceived(object? sender, GPSMessageEventArgs e)
         {
             NMEA = e.NMEASentence;
 
             if (NMEA.Status != "Valid Fix")
                 return;
 
-            // Update UI elements based on GPS data
             UpdateUIWithGPSData();
         }
 
@@ -162,7 +150,6 @@ namespace ThunderApp
                 Coordinates.Text = $"{NMEA.Latitude}, {NMEA.Longitude}";
                 Speed.Text = $"{Math.Round(NMEA.Speed)} MPH";
                 Altimeter.Text = $"{Math.Round(NMEA.Altitude)} ft";
-                // labelHeading.Content = $"{Math.Round(NMEA.Course)} ({NMEA.GetCardinalDirection(NMEA.Course)})";
             });
         }
 
@@ -174,14 +161,13 @@ namespace ThunderApp
                 {
                     _geoCodeLocation = GeoCode.GetData(NMEA)!;
 
-                    // Update VMix and other UI elements
                     await Dispatcher.Invoke(async () =>
                     {
-                        vmix.Value = $"Direction: ({NMEA.GetCardinalDirection(NMEA.Course)}) - Location: {_geoCodeLocation!.Road} - {_geoCodeLocation.City}, {_geoCodeLocation.County}, {_geoCodeLocation.State}";
+                        vmix.Value = $"Direction: ({NMEA.GetCardinalDirection(NMEA.Course)}) - Location: {_geoCodeLocation.Road} - {_geoCodeLocation.City}, {_geoCodeLocation.County}, {_geoCodeLocation.State}";
                         string locationUrl = vmix.UpdateUrl();
-                        await Vmix.SendRequest(locationUrl); // Uncomment and replace with actual logic
+                        await Vmix.SendRequest(locationUrl);
 
-                        Road.Text = _geoCodeLocation!.Road;
+                        Road.Text = _geoCodeLocation.Road;
                         City.Text = _geoCodeLocation.City;
                         County.Text = _geoCodeLocation.County;
                         State.Text = _geoCodeLocation.State;
@@ -189,35 +175,39 @@ namespace ThunderApp
                 });
             }
         }
+
         private async void StartGPS_OnClick(object sender, RoutedEventArgs e)
         {
             try
             {
                 GPSLocation.Read();
-
                 Thread.Sleep(1000);
 
                 await UpdateLocation(_vmixLocation);
 
-                StartGPS.IsEnabled                     = false;
-                //serialPortsToolStripMenuItem.Enabled = false;
+                StartGPS.IsEnabled = false;
+                StopGPS.IsEnabled = true;
+                LogTextBox.Clear();
             }
             catch (Exception ex)
             {
                 LogTextBox.AppendText(ex.Message);
                 LogTextBox.AppendText(Environment.NewLine);
-                StartGPS.IsEnabled                     = true;
-                //serialPortsToolStripMenuItem.Enabled = true;
+                StartGPS.IsEnabled = true;
+                StopGPS.IsEnabled = false;
             }
         }
 
         private void StopGPS_OnClick(object sender, RoutedEventArgs e)
         {
             GPSLocation.StopReader();
-            StartGPS.IsEnabled                     = true;
-            //serialPortsToolStripMenuItem.Enabled = true;
+            StartGPS.IsEnabled = true;
+            StopGPS.IsEnabled = false;
+            LogTextBox.Clear();
         }
-        
+
+        #region menu clicks
+
         private void MenuItem_New_Click(object sender, RoutedEventArgs e)
         {
             throw new NotImplementedException();
@@ -258,6 +248,6 @@ namespace ThunderApp
             throw new NotImplementedException();
         }
 
-
+        #endregion
     }
 }

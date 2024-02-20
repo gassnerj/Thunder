@@ -1,51 +1,53 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using GeoJsonWeather.Models;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
-using JsonException = System.Text.Json.JsonException;
 
-namespace GeoJsonWeather.Parsers;
-
-public class ForecastZoneParser : IJsonParser<ForecastZoneModel>
+namespace GeoJsonWeather.Parsers
 {
-    public ForecastZoneModel GetItem(string jsonString)
+    public class ForecastZoneParser : IJsonParser<ForecastZoneModel>
     {
-        try
+        public ForecastZoneModel GetItem(JsonElement jsonElement)
         {
-            var jsonObject = JsonConvert.DeserializeObject<JObject>(jsonString);
-            var stations   = jsonObject["properties"]?["observationStations"]?.Select(item => item.Value<string>()).ToList();
-
-            return new ForecastZoneModel()
+            try
             {
-                Id                     = jsonObject?["properties"]?["id"]?.Value<string>(),
-                Name                   = jsonObject?["properties"]?["name"]?.Value<string>(),
-                State                  = jsonObject?["properties"]?["state"]?.Value<string>(),
-                CWA                    = jsonObject?["properties"]?["cwa"]?[0]?.Value<string>(),
-                ForecastOfficeUrl      = jsonObject?["properties"]?["forecastOffices"]?[0]?.Value<string>(),
-                TimeZone               = jsonObject?["properties"]?["timeZone"]?[0]?.Value<string>(),
-                ZonePolygonCoordinates = ParseCoordinates(jsonObject["geometry"]?["coordinates"]?[0]),
-                ObservationStationUrls = stations
-            };
-        }
-        catch (JsonException ex)
-        {
-            Console.WriteLine(ex.Message);
-        }
-        return null;
-    }
+                // Extracting observation stations
+                var stations = jsonElement.GetProperty("properties").GetProperty("observationStations")
+                    .EnumerateArray()
+                    .Select(item => item.GetString())
+                    .ToList();
 
-    private List<Coordinate> ParseCoordinates(JToken jToken)
-    {
-        var coordinates = new List<Coordinate>();
-        
-        foreach (JToken coordinate in jToken)
-        {
-            var latitude  = Convert.ToDouble(coordinate[0]);
-            var longitude = Convert.ToDouble(coordinate[1]);
-            coordinates.Add(new Coordinate(latitude, longitude));            
+                return new ForecastZoneModel
+                {
+                    Id                     = jsonElement.GetProperty("properties").GetProperty("id").GetString(),
+                    Name                   = jsonElement.GetProperty("properties").GetProperty("name").GetString(),
+                    State                  = jsonElement.GetProperty("properties").GetProperty("state").GetString(),
+                    CWA                    = jsonElement.GetProperty("properties").GetProperty("cwa")[0].GetString(),
+                    ForecastOfficeUrl      = jsonElement.GetProperty("properties").GetProperty("forecastOffices")[0].GetString(),
+                    TimeZone               = jsonElement.GetProperty("properties").GetProperty("timeZone")[0].GetString(),
+                    ZonePolygonCoordinates = ParseCoordinates(jsonElement.GetProperty("geometry").GetProperty("coordinates")[0]),
+                    ObservationStationUrls = stations
+                };
+            }
+            catch (JsonException ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
+            return null;
         }
-        return coordinates;
+
+        private static List<Coordinate> ParseCoordinates(JsonElement jsonElement)
+        {
+            var coordinates = new List<Coordinate>();
+
+            foreach (JsonElement coordinate in jsonElement.EnumerateArray())
+            {
+                double latitude  = coordinate[0].GetDouble();
+                double longitude = coordinate[1].GetDouble();
+                coordinates.Add(new Coordinate(latitude, longitude));
+            }
+            return coordinates;
+        }
     }
 }

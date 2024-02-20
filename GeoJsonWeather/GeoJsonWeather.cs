@@ -509,8 +509,8 @@ namespace GeoJsonWeather
 
     public class GeoCode
     {
-        public List<string> UGCCodes { get; set; }
-        public List<string> SAMECodes { get; set; }
+        public static List<string> UGCCodes { get; set; }
+        public static List<string> SAMECodes { get; set; }
 
         public GeoCode()
         {

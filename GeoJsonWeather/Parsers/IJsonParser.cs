@@ -1,6 +1,8 @@
-﻿namespace GeoJsonWeather.Parsers;
+﻿using System.Text.Json;
+
+namespace GeoJsonWeather.Parsers;
 
 public interface IJsonParser<T>
 {
-    T GetItem(string jsonString);
+    T GetItem(JsonElement jsonElement);
 }
