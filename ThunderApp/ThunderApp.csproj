@@ -10,7 +10,6 @@
   <ItemGroup>
     <ProjectReference Include="..\GeoJsonWeather\GeoJsonWeather.csproj" />
     <ProjectReference Include="..\GPSData\GPSData.csproj" />
-    <ProjectReference Include="..\GPSLocation\GPSLocation.csproj" />
     <ProjectReference Include="..\vMixController\vMixController.csproj" />
   </ItemGroup>
 

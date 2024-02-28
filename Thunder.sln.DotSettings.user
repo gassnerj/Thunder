@@ -1,0 +1,3 @@
+﻿<wpf:ResourceDictionary xml:space="preserve" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:s="clr-namespace:System;assembly=mscorlib" xmlns:ss="urn:shemas-jetbrains-com:settings-storage-xaml" xmlns:wpf="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+	<s:Boolean x:Key="/Default/UnloadedProject/UnloadedProjects/=b2cef408_002D4045_002D43f9_002D8664_002Dd33f822e5409_0023WeatherAlertsWF/@EntryIndexedValue">True</s:Boolean>
+	<s:Boolean x:Key="/Default/UnloadedProject/UnloadedProjects/=c8617e1f_002D591a_002D4ff3_002Da84f_002D0da3fc88b7f1_0023GPSLocation/@EntryIndexedValue">True</s:Boolean></wpf:ResourceDictionary>
