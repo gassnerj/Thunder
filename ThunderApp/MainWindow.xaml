@@ -1,155 +1,308 @@
-﻿<Window x:Class="ThunderApp.MainWindow"
-        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+﻿<Window x:Class="ThunderApp.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:ThunderApp"
-        xmlns:wpf="clr-namespace:LiveCharts.Wpf;assembly=LiveCharts.Wpf"
-        mc:Ignorable="d"
-        Title="MainWindow" Height="Auto" Width="Auto">
-    <Grid>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <!-- Menu -->
-            <RowDefinition Height="*" />
-            <!-- TabControl -->
-            <RowDefinition Height="Auto" />
-            <!-- StatusBar -->
-        </Grid.RowDefinitions>
-
-        <!-- Menu -->
-        <Menu Grid.Row="0">
-            <!-- File Menu -->
-            <!-- ... (your menu items) -->
-        </Menu>
-
-        <!-- TabControl -->
-        <TabControl Grid.Row="1">
-            <TabItem Header="GPS">
-                <Grid Margin="5, 0, 0, 0">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
-
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
-
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="100" /> <!-- Column for Labels -->
-                            <ColumnDefinition Width="200" />    <!-- Column for Values -->
-                            <ColumnDefinition Width="400" /> <!-- Column for the black text box -->
-                        </Grid.ColumnDefinitions>
-
-                        <!-- Latitude -->
-                        <TextBlock Grid.Column="0" Grid.Row="0" Text="Coordinates:" />
-                        <TextBlock Grid.Column="1" Grid.Row="0" Name="Coordinates" Text="" />
-                        <TextBox Text="Click 'Start GPS' to begin." BorderBrush="Black" BorderThickness="1"
-                                 Background="Black"
-                                 Foreground="White" Grid.Row="0" Grid.Column="2" Name="LogTextBox" Grid.RowSpan="15">
-                        </TextBox>
-
-                        <!-- Longitude -->
-                        <TextBlock Grid.Column="0" Grid.Row="1" Text="Speed:" />
-                        <TextBlock Grid.Column="1" Grid.Row="1" Name="Speed" Text="" />
-
-                        <!-- Altimeter -->
-                        <TextBlock Grid.Column="0" Grid.Row="2" Text="Altimeter:" />
-                        <TextBlock Grid.Column="1" Grid.Row="2" Name="Altimeter" Text="" />
-
-                        <!-- Road -->
-                        <TextBlock Grid.Column="0" Grid.Row="3" Text="Road:" />
-                        <TextBlock Grid.Column="1" Grid.Row="3" Name="Road" Text="" />
-
-                        <!-- City -->
-                        <TextBlock Grid.Column="0" Grid.Row="4" Text="City:" />
-                        <TextBlock Grid.Column="1" Grid.Row="4" Name="City" Text="" />
-
-                        <!-- County -->
-                        <TextBlock Grid.Column="0" Grid.Row="5" Text="County:" />
-                        <TextBlock Grid.Column="1" Grid.Row="5" Name="County" Text="" />
-
-                        <!-- State -->
-                        <TextBlock Grid.Column="0" Grid.Row="6" Text="State:" />
-                        <TextBlock Grid.Column="1" Grid.Row="6" Name="State" Text="" />
-                    </Grid>
-
-                    <StackPanel Grid.Row="1" HorizontalAlignment="Left" Margin="0, 10, 0, 0">
-                        <Button Name="StartGPS" Click="StartGPS_OnClick" Margin="0, 0, 0, 5">Start GPS</Button>
-                        <Button Name="StopGPS" Click="StopGPS_OnClick">Stop GPS</Button>
-                    </StackPanel>
-                </Grid>
-            </TabItem>
-
-
-            <TabItem Header="Weather Station">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
-    
-                    <GroupBox Header="Observations" Grid.Row="0">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-
+        xmlns:wpf="clr-namespace:LiveCharts.Wpf;assembly=LiveCharts.Wpf" xmlns:views="clr-namespace:ThunderApp.Views"
+        mc:Ignorable="d" Title="GPS Monitor" Width="1200" Height="780" WindowStartupLocation="CenterScreen">
+    <Window.Resources> <!-- Palette --> <SolidColorBrush x:Key="AppBg" Color="#0B0E14" />
+        <SolidColorBrush x:Key="Surface" Color="#111827" /> <SolidColorBrush x:Key="Surface2" Color="#0F172A" />
+        <SolidColorBrush x:Key="Border" Color="#253047" /> <SolidColorBrush x:Key="Text" Color="#E5E7EB" />
+        <SolidColorBrush x:Key="Muted" Color="#AAB2C5" /> <SolidColorBrush x:Key="Accent" Color="#4F8BFF" />
+        <SolidColorBrush x:Key="Accent2" Color="#2B5BFF" /> <CornerRadius x:Key="Radius">12</CornerRadius>
+        <!-- Global --> <Style x:Key="MainTabs" TargetType="TabControl">
+            <Setter Property="Background" Value="Transparent" /> <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" /> <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Stretch" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabControl">
+                        <Grid Background="Transparent">
                             <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" /> <RowDefinition Height="*" />
                             </Grid.RowDefinitions>
-
-                            <Label Grid.Row="0" Grid.Column="0">Temp:</Label>
-                            <TextBlock Grid.Row="0" Grid.Column="1" Name="AirTemperature" Text=""></TextBlock>
-
-                            <Label Grid.Row="1" Grid.Column="0">Dew Point:</Label>
-                            <TextBlock Grid.Row="1" Grid.Column="1" Name="DewPoint" Text=""></TextBlock>
-
-                            <Label Grid.Row="2" Grid.Column="0">Wind:</Label>
-                            <TextBlock Grid.Row="2" Grid.Column="1" Name="Wind" Text=""></TextBlock>
-
-                            <Label Grid.Row="3" Grid.Column="0">Last Update:</Label>
-                            <TextBlock Grid.Row="3" Grid.Column="1" Name="LastUpdate" Text=""></TextBlock>
-                            
-                            <wpf:CartesianChart Grid.Row="0" Grid.RowSpan="4" Grid.Column="2" Name="DataChart" />
+                            <TabPanel Grid.Row="0" IsItemsHost="True" Margin="12,10,0,8" />
+                            <!-- IMPORTANT: no border, no background -->
+                            <ContentPresenter Grid.Row="1" Margin="12" ContentSource="SelectedContent"
+                                              HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
                         </Grid>
-                    </GroupBox>
-                </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style TargetType="Window">
+            <Setter Property="Background" Value="{StaticResource AppBg}" />
+            <Setter Property="TextElement.Foreground" Value="{StaticResource Text}" />
+            <Setter Property="FontFamily" Value="Segoe UI" /> <Setter Property="FontSize" Value="13" />
+        </Style>
+        <Style TargetType="TextBlock">
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="{StaticResource Surface2}" />
+            <Setter Property="Foreground" Value="{StaticResource Text}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Border}" />
+            <Setter Property="BorderThickness" Value="1" /> <Setter Property="Padding" Value="10" />
+            <Setter Property="CaretBrush" Value="{StaticResource Text}" />
+        </Style>
+        <Style TargetType="Button">
+            <Setter Property="Foreground" Value="{StaticResource Text}" />
+            <Setter Property="Background" Value="{StaticResource Surface2}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Border}" />
+            <Setter Property="BorderThickness" Value="1" /> <Setter Property="Padding" Value="12,7" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="10">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#16233A" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#0D1526" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style> <!-- Primary button (opt-in) -->
+        <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Background" Value="{StaticResource Accent2}" />
+            <Setter Property="BorderBrush" Value="#2B5BFF" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="10">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="{StaticResource Accent}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="#224BDB" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style> <!-- Card surface --> <Style x:Key="Card" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource Surface}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Border}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="{StaticResource Radius}" /> <Setter Property="Padding" Value="14" />
+        </Style> <!-- Tabs: flat, readable --> <Style TargetType="TabControl">
+            <Setter Property="Background" Value="Transparent" /> <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabControl">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" /> <RowDefinition Height="*" />
+                            </Grid.RowDefinitions> <!-- Tab strip only -->
+                            <TabPanel Grid.Row="0" IsItemsHost="True" Margin="12,10,0,8" />
+                            <!-- Content only (no frame) -->
+                            <ContentPresenter Grid.Row="1" Margin="12" ContentSource="SelectedContent" />
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style TargetType="TabItem">
+            <Setter Property="Foreground" Value="{StaticResource Muted}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="MinWidth" Value="120" />
+            <Setter Property="Height" Value="36" />
+            <Setter Property="Padding" Value="16,0" />
+            <Setter Property="Margin" Value="0,0,0,0" />  <!-- more gap so corners don't get covered -->
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="Bd"
+                                Background="Transparent"
+                                CornerRadius="10"
+                                SnapsToDevicePixels="True">
+                            <Border.Effect>
+                                <!-- optional: remove if you don't want subtle depth -->
+                                <DropShadowEffect BlurRadius="6" ShadowDepth="0" Opacity="0.15" />
+                            </Border.Effect>
 
+                            <Border Padding="{TemplateBinding Padding}"
+                                    Height="{TemplateBinding Height}"
+                                    MinWidth="{TemplateBinding MinWidth}"
+                                    CornerRadius="10">
+                                <ContentPresenter ContentSource="Header"
+                                                  RecognizesAccessKey="True"
+                                                  HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center" />
+                            </Border>
+                        </Border>
 
-            </TabItem>
-        </TabControl>
+                        <ControlTemplate.Triggers>
+                            <!-- Put selected tab above neighbors so its rounded corners aren't clipped -->
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Panel.ZIndex" Value="10" />
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource Surface2}" />
+                                <Setter Property="Foreground" Value="{StaticResource Text}" />
+                            </Trigger>
 
-        <!-- StatusBar -->
-        <StatusBar Grid.Row="2" VerticalAlignment="Bottom">
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Panel.ZIndex" Value="5" />
+                                <Setter TargetName="Bd" Property="Background" Value="#0E1526" />
+                                <Setter Property="Foreground" Value="{StaticResource Text}" />
+                            </Trigger>
+
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="StatusBar">
+            <Setter Property="Background" Value="{StaticResource Surface2}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Border}" />
+            <Setter Property="BorderThickness" Value="1,1,0,0" />
+        </Style>
+        <Style TargetType="Menu">
+            <Setter Property="Background" Value="{StaticResource Surface2}" />
+            <Setter Property="Foreground" Value="{StaticResource Text}" />
+        </Style>
+    </Window.Resources>
+    <DockPanel LastChildFill="True"> <!-- Menu --> <Menu DockPanel.Dock="Top" Padding="8,6">
+            <MenuItem Header="_File" /> <MenuItem Header="_View" /> <MenuItem Header="_Tools" />
+            <MenuItem Header="_Help" />
+        </Menu> <!-- Status --> <StatusBar DockPanel.Dock="Bottom">
             <StatusBarItem>
                 <TextBlock x:Name="StatusBarItem" Text="Ready" />
             </StatusBarItem>
-        </StatusBar>
-    </Grid>
+        </StatusBar> <!-- Tabs --> <TabControl Style="{StaticResource MainTabs}">
+            <TabItem Header="Dashboard">
+                <views:DashboardView x:Name="Dashboard" />
+            </TabItem>
+            <TabItem Header="GPS">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" /> <ColumnDefinition Width="12" /> <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions> <!-- Left card --> <Border Grid.Column="0" Style="{StaticResource Card}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" /> <RowDefinition Height="12" />
+                                <RowDefinition Height="*" /> <RowDefinition Height="12" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <StackPanel Grid.Row="0">
+                                <TextBlock FontSize="18" FontWeight="SemiBold" Text="GPS" />
+                                <TextBlock Foreground="{StaticResource Muted}" Text="Live position + reverse geocode." />
+                            </StackPanel>
+                            <Grid Grid.Row="2">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="140" /> <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" /> <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" /> <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" /> <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Grid.Column="0" Foreground="{StaticResource Muted}"
+                                           Text="Coordinates" />
+                                <TextBlock Grid.Row="0" Grid.Column="1" Name="Coordinates" Text="—" />
+                                <TextBlock Grid.Row="1" Grid.Column="0" Foreground="{StaticResource Muted}"
+                                           Text="Speed" />
+                                <TextBlock Grid.Row="1" Grid.Column="1" Name="Speed" Text="—" />
+                                <TextBlock Grid.Row="2" Grid.Column="0" Foreground="{StaticResource Muted}"
+                                           Text="Altimeter" />
+                                <TextBlock Grid.Row="2" Grid.Column="1" Name="Altimeter" Text="—" />
+                                <TextBlock Grid.Row="3" Grid.Column="0" Foreground="{StaticResource Muted}" Text="Road" />
+                                <TextBlock Grid.Row="3" Grid.Column="1" Name="Road" Text="—" />
+                                <TextBlock Grid.Row="4" Grid.Column="0" Foreground="{StaticResource Muted}" Text="City" />
+                                <TextBlock Grid.Row="4" Grid.Column="1" Name="City" Text="—" />
+                                <TextBlock Grid.Row="5" Grid.Column="0" Foreground="{StaticResource Muted}"
+                                           Text="County" />
+                                <TextBlock Grid.Row="5" Grid.Column="1" Name="County" Text="—" />
+                                <TextBlock Grid.Row="6" Grid.Column="0" Foreground="{StaticResource Muted}"
+                                           Text="State" />
+                                <TextBlock Grid.Row="6" Grid.Column="1" Name="State" Text="—" />
+                            </Grid>
+                            <StackPanel Grid.Row="4" Orientation="Horizontal">
+                                <Button Name="StartGPS" Click="StartGPS_OnClick" Style="{StaticResource PrimaryButton}"
+                                        Margin="0,0,5,0">
+                                    Start GPS
+                                </Button>
+                                <Button Name="StopGPS" Click="StopGPS_OnClick">Stop GPS</Button>
+                            </StackPanel>
+                        </Grid>
+                    </Border> <!-- Right card --> <Border Grid.Column="2" Style="{StaticResource Card}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" /> <RowDefinition Height="10" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <StackPanel Grid.Row="0">
+                                <TextBlock FontSize="16" FontWeight="SemiBold" Text="GPS Log" />
+                                <TextBlock Foreground="{StaticResource Muted}" Text="Raw / debug output." />
+                            </StackPanel>
+                            <TextBox Grid.Row="2" Name="LogTextBox" Text="Click 'Start GPS' to begin."
+                                     FontFamily="Consolas" FontSize="12" IsReadOnly="True" TextWrapping="NoWrap"
+                                     VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" />
+                        </Grid>
+                    </Border>
+                </Grid>
+            </TabItem>
+            <TabItem Header="Weather Station">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" /> <ColumnDefinition Width="12" /> <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border Grid.Column="0" Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock FontSize="18" FontWeight="SemiBold" Text="Weather Station" />
+                            <TextBlock Foreground="{StaticResource Muted}" Margin="0,0,0,12"
+                                       Text="Latest observations." />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="160" /> <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" /> <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" /> <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Grid.Column="0" Foreground="{StaticResource Muted}" Text="Temp" />
+                                <TextBlock Grid.Row="0" Grid.Column="1" Name="AirTemperature" Text="—" />
+                                <TextBlock Grid.Row="1" Grid.Column="0" Foreground="{StaticResource Muted}"
+                                           Text="Dew Point" />
+                                <TextBlock Grid.Row="1" Grid.Column="1" Name="DewPoint" Text="—" />
+                                <TextBlock Grid.Row="2" Grid.Column="0" Foreground="{StaticResource Muted}" Text="Wind" />
+                                <TextBlock Grid.Row="2" Grid.Column="1" Name="Wind" Text="—" />
+                                <TextBlock Grid.Row="3" Grid.Column="0" Foreground="{StaticResource Muted}"
+                                           Text="Last Update" />
+                                <TextBlock Grid.Row="3" Grid.Column="1" Name="LastUpdate" Text="—" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                    <Border Grid.Column="2" Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock FontSize="16" FontWeight="SemiBold" Text="Trend" />
+                            <TextBlock Foreground="{StaticResource Muted}" Margin="0,0,0,10" Text="LiveCharts output." />
+                            <wpf:CartesianChart Name="DataChart" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </TabItem>
+        </TabControl>
+    </DockPanel>
 </Window>

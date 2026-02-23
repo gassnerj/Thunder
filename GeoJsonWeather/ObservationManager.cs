@@ -1,6 +1,8 @@
 ﻿#nullable enable
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Tasks;
 using GeoJsonWeather.Api;
 using GeoJsonWeather.Models;
@@ -10,67 +12,80 @@ namespace GeoJsonWeather;
 
 public class ObservationManager
 {
-
-    public static async IAsyncEnumerable<ObservationModel?> GetNearestObservations(double latitude, double longitude)
+    public static async IAsyncEnumerable<ObservationModel?> GetNearestObservations(
+        double latitude,
+        double longitude,
+        [EnumeratorCancellation] CancellationToken ct = default)
     {
-        var url = $"https://api.weather.gov/points/{latitude},{longitude}";
+        var pointsUrl = $"https://api.weather.gov/points/{latitude},{longitude}";
 
-        var                 apiFetcher = new ApiFetcher(string.Empty, url);
-        var                 apiManager = new ApiManager(apiFetcher);
-        var                 apiParser  = new ForecastPointParser();
-        ForecastPointModel? model      = apiManager.GetModel(apiParser);
+        var pointsMgr = new ApiManager(new ApiFetcher(string.Empty, pointsUrl));
+        ForecastPointModel? point = await pointsMgr.GetModelAsync(new ForecastPointParser(), ct);
+        if (point is null || string.IsNullOrWhiteSpace(point.ZoneUrl))
+            yield break;
 
-        if (model is null)
-            yield return null;
+        var zoneMgr = new ApiManager(new ApiFetcher(string.Empty, point.ZoneUrl));
+        ForecastZoneModel? zone = await zoneMgr.GetModelAsync(new ForecastZoneParser(), ct);
+        if (zone?.ObservationStationUrls is null || zone.ObservationStationUrls.Count == 0)
+            yield break;
 
-        var                zoneApiFetcher = new ApiFetcher(string.Empty, model.ZoneUrl);
-        var                zoneApiManager = new ApiManager(zoneApiFetcher);
-        var                zoneApiParser  = new ForecastZoneParser();
-        ForecastZoneModel? zoneModel      = zoneApiManager.GetModel(zoneApiParser);
+        var stations = new List<ObservationStationModel>();
 
-        if (zoneModel.ObservationStationUrls.Count == 0)
+        // Keep sequential for now (simple + safe). We can parallelize later with a cap.
+        foreach (string stationUrl in zone.ObservationStationUrls)
         {
-            yield return null;
+            ct.ThrowIfCancellationRequested();
+
+            var stationMgr = new ApiManager(new ApiFetcher(string.Empty, stationUrl));
+            ObservationStationModel? station = await stationMgr.GetModelAsync(new ObservationStationParser(), ct);
+            if (station != null) stations.Add(station);
         }
 
-        var observationStationModels = new List<ObservationStationModel>();
+        if (stations.Count == 0)
+            yield break;
 
-        foreach (string stationUrl in zoneModel.ObservationStationUrls)
+        // Loop while inside zone polygon
+        while (!ct.IsCancellationRequested &&
+               GeoHelper.IsPointInPolygon(latitude, longitude, zone.ZonePolygonCoordinates))
         {
-            var                      stationApiFetcher = new ApiFetcher(string.Empty, stationUrl);
-            var                      stationApiManager = new ApiManager(stationApiFetcher);
-            var                      stationApiParser  = new ObservationStationParser();
-            ObservationStationModel? stationModel      = stationApiManager.GetModel(stationApiParser);
-            observationStationModels.Add(stationModel);
-        }
+            ObservationStationModel nearest = FindNearestStation(latitude, longitude, stations);
+            var obsUrl = $"https://api.weather.gov/stations/{nearest.StationIdentifier}/observations/latest";
 
-        while (GeoHelper.IsPointInPolygon(latitude, longitude, zoneModel.ZonePolygonCoordinates))
-        {
-            await Task.Delay(60000);
-            
-            ObservationStationModel nearestStation = FindNearestStation(latitude, longitude, observationStationModels);
+            ObservationModel? obs = null;
+            try
+            {
+                var obsMgr = new ApiManager(new ApiFetcher(string.Empty, obsUrl));
+                obs = await obsMgr.GetModelAsync(new ObservationParser(), ct);
+            }
+            catch
+            {
+                // Bulletproof behavior: don't crash the stream loop.
+                // Later we’ll add “last known good” + stale flag.
+            }
 
-            var nearestStationUrl = $"https://api.weather.gov/stations/{nearestStation.StationIdentifier}/observations/latest";
+            yield return obs;
 
-            var observationApiFetcher = new ApiFetcher(string.Empty, nearestStationUrl);
-            var observationApiManager = new ApiManager(observationApiFetcher);
-            var observationApiParser  = new ObservationParser();
-            yield return observationApiManager.GetModel(observationApiParser);
+            // Delay AFTER yielding so you get an immediate first update.
+            await Task.Delay(60000, ct);
         }
     }
 
-    private static ObservationStationModel FindNearestStation(double targetLatitude, double targetLongitude, List<ObservationStationModel> stations)
+    private static ObservationStationModel FindNearestStation(
+        double targetLatitude,
+        double targetLongitude,
+        List<ObservationStationModel> stations)
     {
         string? nearestStationId = null;
-        var     minDistance      = double.MaxValue;
+        var minDistance = double.MaxValue;
 
         foreach (ObservationStationModel station in stations)
         {
-            double distance = GeoHelper.CalculateHaversineDistance(targetLatitude, targetLongitude, station.Coordinates.Latitude, station.Coordinates.Longitude);
+            double distance = GeoHelper.CalculateHaversineDistance(
+                targetLatitude, targetLongitude,
+                station.Coordinates.Latitude, station.Coordinates.Longitude);
 
-            if (!(distance < minDistance))
-                continue;
-            minDistance      = distance;
+            if (!(distance < minDistance)) continue;
+            minDistance = distance;
             nearestStationId = station.Id;
         }
 

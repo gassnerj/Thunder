@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Net.Http;
+using System.Threading;
 using System.Threading.Tasks;
 using Flurl.Http;
 
@@ -6,33 +8,32 @@ namespace GeoJsonWeather.Api
 {
     public static class WebData
     {
-        public static async Task<string> SendHttpRequestAsync(string url)
-        {
-            return await SendHttpRequestAsync("NoUserAgent", url);
-        }
+        public static Task<string> SendHttpRequestAsync(string url, CancellationToken ct = default)
+            => SendHttpRequestAsync(NwsDefaults.UserAgent, url, ct);
 
-        public static async Task<string> SendHttpRequestAsync(string userAgent, string url)
+        public static async Task<string> SendHttpRequestAsync(string userAgent, string url, CancellationToken ct = default)
         {
             try
             {
-                string responseString = await url
-                    .WithHeader("User-Agent", userAgent)
-                    .WithHeader("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
-                    .GetStringAsync();
-                return responseString;
+                // NWS likes clear identification. Keep this stable.
+                return await url
+                    .WithHeader("User-Agent", string.IsNullOrWhiteSpace(userAgent) ? NwsDefaults.UserAgent : userAgent)
+                    .WithHeader("Accept", "application/geo+json, application/json")
+                    .GetStringAsync(cancellationToken: ct)
+                    .ConfigureAwait(false);
             }
             catch (FlurlHttpException ex)
             {
-                Console.WriteLine(ex.Message);
-                Console.WriteLine(ex.StackTrace);
+                // Don’t poison downstream with null. Fail loud; caller decides fallback.
+                int? status = ex.Call?.Response?.StatusCode;
+                throw new HttpRequestException($"HTTP {(status.HasValue ? status.Value.ToString() : "error")} fetching {url}", ex);
             }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex.Message);
-                Console.WriteLine(ex.StackTrace);
-            }
-
-            return null;
         }
+    }
+
+    internal static class NwsDefaults
+    {
+        // Put your email or site here. Doesn’t need to be fancy.
+        public const string UserAgent = "ThunderWeather/1.0 (contact: you@example.com)";
     }
 }

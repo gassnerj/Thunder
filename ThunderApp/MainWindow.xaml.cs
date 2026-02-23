@@ -21,6 +21,8 @@ namespace ThunderApp
     /// </summary>
     public partial class MainWindow : Window
     {
+        private bool _didInitialMapCenter = false;
+        
         private GPS GPSLocation { get; set; }
         private GeoCode GeoCode { get; set; } 
         private NMEA NMEA { get; set; } = null!;
@@ -145,24 +147,46 @@ namespace ThunderApp
 
         private async void GPSLocation_MessageReceived(object? sender, GPSMessageEventArgs e)
         {
-            NMEA = e.NMEASentence;
+            try
+            {
+                NMEA = e.NMEASentence;
 
-            if (NMEA.Status != "Valid Fix")
-                return;
+                if (NMEA.Status != "Valid Fix")
+                    return;
 
-            // Update UI elements based on GPS data
-            UpdateUIWithGPSData();
+                // Update UI elements based on GPS data
+                await UpdateUIWithGPSData();
+            }
+            catch (Exception ex)
+            {
+                throw; // TODO handle exception
+            }
         }
 
-        private void UpdateUIWithGPSData()
+        private async Task UpdateUIWithGPSData()
         {
-            Dispatcher.Invoke(() =>
+            await Dispatcher.InvokeAsync(() =>
             {
                 StatusBarItem.Text = NMEA.Status;
                 Coordinates.Text = $"{NMEA.Latitude}, {NMEA.Longitude}";
                 Speed.Text = $"{Math.Round(NMEA.Speed)} MPH";
                 Altimeter.Text = $"{Math.Round(NMEA.Altitude)} ft";
                 // labelHeading.Content = $"{Math.Round(NMEA.Course)} ({NMEA.GetCardinalDirection(NMEA.Course)})";
+            });
+            
+            await Dispatcher.InvokeAsync(async () =>
+            {
+                if (Dashboard == null) return;
+
+                if (!_didInitialMapCenter)
+                {
+                    _didInitialMapCenter = true;
+                    await Dashboard.UpdateMapLocationAsync(NMEA.Latitude, NMEA.Longitude, zoom: 12, addTrail: true, forceCenter: true);
+                }
+                else
+                {
+                    await Dashboard.UpdateMapLocationAsync(NMEA.Latitude, NMEA.Longitude, zoom: 12, addTrail: true, forceCenter: false);
+                }
             });
         }
 

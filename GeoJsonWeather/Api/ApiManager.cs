@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Threading;
+using System.Threading.Tasks;
 using GeoJsonWeather.Parsers;
 
 namespace GeoJsonWeather.Api;
@@ -12,9 +14,13 @@ public class ApiManager
         _apiRetriever = apiRetriever ?? throw new ArgumentNullException(nameof(apiRetriever));
     }
 
-    public T GetModel<T>(IJsonParser<T> jsonParser)
+    public async Task<T?> GetModelAsync<T>(IJsonParser<T> jsonParser, CancellationToken ct = default)
     {
-        string json = _apiRetriever.GetData().Result;
-        return jsonParser.GetItem(json);
+        string json = await _apiRetriever.GetData(ct).ConfigureAwait(false);
+        return string.IsNullOrWhiteSpace(json) ? default : jsonParser.GetItem(json);
     }
+
+    // Keep this ONLY for legacy callers (ideally delete later)
+    public T? GetModel<T>(IJsonParser<T> jsonParser)
+        => GetModelAsync(jsonParser).GetAwaiter().GetResult();
 }

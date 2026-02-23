@@ -21,7 +21,7 @@ public partial class MainForm : Form
     {
         InitializeComponent();
         
-        Text = "Alerts";
+        Text = @"Alerts";
 
         alertsDataGrid.RowPrePaint += AlertsDataGrid_RowPrePaint;
         alertsDataGrid.CellDoubleClick += AlertsDataGrid_CellDoubleClick;
@@ -46,6 +46,12 @@ public partial class MainForm : Form
         alertsDataGrid.RowHeadersVisible = false;
 
         //_ = GetGps();
+    }
+
+    public sealed override string Text
+    {
+        get { return base.Text; }
+        set { base.Text = value; }
     }
 
     private void MyLocationsToolStripMenuItem_Click(object sender, EventArgs e)

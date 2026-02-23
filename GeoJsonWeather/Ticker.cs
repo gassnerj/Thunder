@@ -1,17 +1,18 @@
 ﻿using System;
-
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace GeoJsonWeather
 {
     public static class Ticker
     {
-        public static async void Tick<T>(T action, TimeSpan timeSpan)
+        public static async Task Tick(Func<Task> action, TimeSpan interval, CancellationToken ct = default)
         {
-            var timer = new System.Threading.PeriodicTimer(timeSpan);
+            using var timer = new PeriodicTimer(interval);
 
-            while (await timer.WaitForNextTickAsync())
+            while (await timer.WaitForNextTickAsync(ct).ConfigureAwait(false))
             {
-                _ = action;
+                await action().ConfigureAwait(false);
             }
         }
     }

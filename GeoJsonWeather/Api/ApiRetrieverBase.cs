@@ -1,4 +1,5 @@
-﻿using System.Threading.Tasks;
+﻿using System.Threading;
+using System.Threading.Tasks;
 
 namespace GeoJsonWeather.Api;
 
@@ -14,7 +15,7 @@ public abstract class ApiRetrieverBase : IApiRetriever
             _userAgent = userAgent;
     }
 
-    async Task<string> IApiRetriever.GetData()
+    async Task<string> IApiRetriever.GetData(CancellationToken ct)
     {
         return await WebData.SendHttpRequestAsync(_userAgent, _url);
     }

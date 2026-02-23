@@ -3,8 +3,8 @@
     <PropertyGroup>
         <OutputType>WinExe</OutputType>
         <UseWindowsForms>true</UseWindowsForms>
-        <TargetFramework>net6.0-windows</TargetFramework>
-        <LangVersion>10</LangVersion>
+        <TargetFramework>net9.0-windows</TargetFramework>
+        <LangVersion>latestmajor</LangVersion>
     </PropertyGroup>
 
     <ItemGroup>
