@@ -13,6 +13,9 @@ using GeoCode = GPSData.GeoCode;
 using LiveCharts;
 using LiveCharts.Wpf;
 using MeteorologyCore;
+using ThunderApp.Models;
+using ThunderApp.Services;
+using ThunderApp.ViewModels;
 
 namespace ThunderApp
 {
@@ -22,18 +25,21 @@ namespace ThunderApp
     public partial class MainWindow : Window
     {
         private bool _didInitialMapCenter = false;
+        private CancellationTokenSource? _appCts;
+        private ThunderApp.ViewModels.DashboardViewModel? _dashboardVm;
+        private NwsAlertsService? _alertsService;
         
-        private GPS GPSLocation { get; set; }
-        private GeoCode GeoCode { get; set; } 
+        private GPS GPSLocation { get; set; } = null!;
+        private GeoCode GeoCode { get; set; } = null!;
         private NMEA NMEA { get; set; } = null!;
         private IGeoCodeLocation _geoCodeLocation = null!;
         private Vmix _vmixLocation = null!;
         private string SerialPortName { get; set; } = "COM5";
 
-        private SeriesCollection _seriesCollection;
-        private List<double> temperatureData;
-        private List<double> dewPointData;
-        private List<double> windData;
+        private SeriesCollection _seriesCollection = null!;
+        private List<double> temperatureData = null!;
+        private List<double> dewPointData = null!;
+        private List<double> windData = null!;
 
         public MainWindow()
         {
@@ -74,12 +80,24 @@ namespace ThunderApp
             DataChart.LegendLocation = LegendLocation.Right;
         }
 
-        private  void MainWindow_Loaded(object sender, RoutedEventArgs e)
+        private void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
-            _ = InitializeAsync();
+            _appCts = new CancellationTokenSource();
+
+            // Use whatever concrete classes you ALREADY have in your project.
+            var alerts = new NwsAlertsService("ThunderApp (contact: you@example.com)");
+            var gps = new GpsService();          // <-- change to your actual class name
+            var log = new DiskLogService();      // <-- change to your actual class name
+            var settings = new JsonSettingsService<AlertFilterSettings>("alertFilters.json"); 
+            // <-- change to your actual class name
+
+            _dashboardVm = new DashboardViewModel(alerts, gps, log, settings);
+            Dashboard.DataContext = _dashboardVm;
+
+            _ = InitializeAsync(_appCts.Token);
         }
 
-        private async Task InitializeAsync()
+        private async Task InitializeAsync(CancellationToken ct)
         {
             var  vmixFactory = new VmixFactory();
             Vmix vmix        = vmixFactory.CreateInstance("3fcd6206-79ff-4d05-a4fc-3a9ac7fd9752", "Message.Text");
@@ -91,29 +109,29 @@ namespace ThunderApp
             
             Task screenLoop = Task.Run(async () =>
             {
-                while (await screenTimer.WaitForNextTickAsync())
+                while (await screenTimer.WaitForNextTickAsync(ct))
                 {
                     vmix.Value = DateTime.Now.ToString(CultureInfo.CurrentCulture);
                     string url = vmix.UpdateUrl();
                     await Vmix.SendRequest(url);
                 }
-            });
+            }, ct);
 
             Task gpsLoop = Task.Run(async () =>
             {
-                while (await gpsTimer.WaitForNextTickAsync())
+                while (await gpsTimer.WaitForNextTickAsync(ct))
                     if (NMEA.Speed > -1)
                         await UpdateLocation(_vmixLocation);
-            });
+            }, ct);
 
             Task apiLoop = Task.Run(async () =>
             {
-                while (await apiTimer.WaitForNextTickAsync())
+                while (await apiTimer.WaitForNextTickAsync(ct))
                 {
-                    await foreach (ObservationModel? model in ObservationManager.GetNearestObservations(33.9595, -98.6812))
+                    await foreach (ObservationModel? model in ObservationManager.GetNearestObservations(33.9595, -98.6812, ct))
                     {
                         if (model is null)
-                            return;
+                            break;
                         Dispatcher.Invoke(() =>
                         {
                             AirTemperature.Text = model.Temperature.ToFahrenheit().ToString();
@@ -131,9 +149,9 @@ namespace ThunderApp
                         });
                     }
                 }
-            });
+            }, ct);
 
-            await Task.WhenAll(screenLoop, gpsLoop, apiLoop);
+            await Task.CompletedTask; // loops run until ct is cancelled
         }
 
         private void InitializeGPS()
@@ -168,26 +186,36 @@ namespace ThunderApp
             await Dispatcher.InvokeAsync(() =>
             {
                 StatusBarItem.Text = NMEA.Status;
-                Coordinates.Text = $"{NMEA.Latitude}, {NMEA.Longitude}";
-                Speed.Text = $"{Math.Round(NMEA.Speed)} MPH";
-                Altimeter.Text = $"{Math.Round(NMEA.Altitude)} ft";
-                // labelHeading.Content = $"{Math.Round(NMEA.Course)} ({NMEA.GetCardinalDirection(NMEA.Course)})";
+                Coordinates.Text   = $"{NMEA.Latitude}, {NMEA.Longitude}";
+                Speed.Text         = $"{Math.Round(NMEA.Speed)} MPH";
+                Altimeter.Text     = $"{Math.Round(NMEA.Altitude)} ft";
             });
-            
-            await Dispatcher.InvokeAsync(async () =>
-            {
-                if (Dashboard == null) return;
 
-                if (!_didInitialMapCenter)
+            if (Dashboard == null) return;
+
+            if (!_didInitialMapCenter)
+            {
+                _didInitialMapCenter = true;
+                await Dashboard.UpdateMapLocationAsync(NMEA.Latitude, NMEA.Longitude, zoom: 12, addTrail: true, forceCenter: true);
+            }
+            else
+            {
+                await Dashboard.UpdateMapLocationAsync(NMEA.Latitude, NMEA.Longitude, zoom: 12, addTrail: true, forceCenter: false);
+            }
+
+            // This is where alerts refresh happens (via your VM)
+            if (_dashboardVm != null)
+                _ = Dispatcher.InvokeAsync(async () =>
                 {
-                    _didInitialMapCenter = true;
-                    await Dashboard.UpdateMapLocationAsync(NMEA.Latitude, NMEA.Longitude, zoom: 12, addTrail: true, forceCenter: true);
-                }
-                else
-                {
-                    await Dashboard.UpdateMapLocationAsync(NMEA.Latitude, NMEA.Longitude, zoom: 12, addTrail: true, forceCenter: false);
-                }
-            });
+                    try
+                    {
+                        await _dashboardVm.RefreshAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show(ex.ToString());
+                    }
+                });
         }
 
         private async Task UpdateLocation(Vmix vmix)
@@ -219,7 +247,7 @@ namespace ThunderApp
             {
                 GPSLocation.Read();
 
-                Thread.Sleep(1000);
+                await Task.Delay(1000);
 
                 await UpdateLocation(_vmixLocation);
 

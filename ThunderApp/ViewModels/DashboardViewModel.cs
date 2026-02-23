@@ -38,7 +38,16 @@ public partial class DashboardViewModel : ObservableObject
         _log = log;
         _settingsSvc = settingsSvc;
 
-        FilterSettings = _settingsSvc.Load();
+        try
+        {
+            FilterSettings = _settingsSvc.Load();
+        }
+        catch (Exception ex)
+        {
+            FilterSettings = new AlertFilterSettings();
+            //StatusText = "Settings load failed (defaults).";
+            _log.Log("Settings load failed: " + ex);
+        }
 
         AlertsView = CollectionViewSource.GetDefaultView(Alerts);
         AlertsView.Filter = FilterAlert;
@@ -62,7 +71,7 @@ public partial class DashboardViewModel : ObservableObject
 
     partial void OnFilterSettingsChanged(AlertFilterSettings value)
     {
-        AlertsView.Refresh();
+        AlertsView?.Refresh();
     }
 
     [RelayCommand]
@@ -74,7 +83,7 @@ public partial class DashboardViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private async Task RefreshAsync()
+    internal async Task RefreshAsync()
     {
         try
         {

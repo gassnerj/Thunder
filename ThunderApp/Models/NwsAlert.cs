@@ -10,6 +10,29 @@ public sealed record NwsAlert(
     string Urgency,
     DateTimeOffset? Effective,
     DateTimeOffset? Expires,
-    string AreaDesc,
-    string? SenderName
-);
+    DateTimeOffset? Ends,
+    DateTimeOffset? Onset,
+    string AreaDescription,
+    string? SenderName,
+    string? Description,
+    string? Instruction
+)
+{
+    public NwsAlert() : this(
+        string.Empty,
+        string.Empty,
+        string.Empty,
+        string.Empty,
+        string.Empty,
+        null,
+        null,
+        null,
+        null,
+        string.Empty,
+        null,
+        null,
+        null
+    )
+    {
+    }
+}

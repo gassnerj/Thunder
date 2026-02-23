@@ -7,8 +7,8 @@ namespace ThunderApp.Models;
 public sealed class AlertFilterSettings
 {
     public bool UseNearMe { get; set; } = false;
-    public double ManualLat { get; set; } = 33.9;   // whatever default you want
-    public double ManualLon { get; set; } = -98.5;
+    public double ManualLat { get; set; } = 33.9595562;   // whatever default you want
+    public double ManualLon { get; set; } = -98.6837273;
 
     // quick toggles
     public bool ShowExtreme { get; set; } = true;
