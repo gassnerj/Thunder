@@ -9,7 +9,7 @@ namespace ThunderApp.Converters
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            var s = (value as string ?? "").Trim();
+            string s = (value as string ?? "").Trim();
 
             if (s.Equals("Extreme", StringComparison.OrdinalIgnoreCase))
                 return new SolidColorBrush(Color.FromRgb(220, 38, 38));    // red

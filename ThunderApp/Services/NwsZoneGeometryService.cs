@@ -6,22 +6,37 @@ using System.Threading.Tasks;
 
 namespace ThunderApp.Services;
 
-public sealed class NwsZoneGeometryService(HttpClient http)
+public sealed class NwsZoneGeometryService(HttpClient http, SimpleDiskCache disk)
 {
-    private readonly ConcurrentDictionary<string, string?> _cache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, string> _mem = new(StringComparer.OrdinalIgnoreCase);
+
+    // Zone boundaries rarely change. Pick something long.
+    private static readonly TimeSpan DiskTtl = TimeSpan.FromDays(30);
 
     public async Task<string?> GetGeometryJsonAsync(string zoneUrl)
     {
-        if (_cache.TryGetValue(zoneUrl, out string? cached))
-            return cached;
+        // 1) memory
+        if (_mem.TryGetValue(zoneUrl, out string? mem))
+            return mem;
 
+        // 2) disk
+        string? diskHit = await disk.TryReadAsync(zoneUrl, DiskTtl).ConfigureAwait(false);
+        if (!string.IsNullOrWhiteSpace(diskHit))
+        {
+            _mem[zoneUrl] = diskHit;
+            return diskHit;
+        }
+
+        // 3) network
         try
         {
-            string json = await http.GetStringAsync(zoneUrl);
+            string json = await http.GetStringAsync(zoneUrl).ConfigureAwait(false);
             using JsonDocument doc = JsonDocument.Parse(json);
 
             JsonElement root = doc.RootElement;
             string? type = root.TryGetProperty("type", out JsonElement t) ? t.GetString() : null;
+
+            string? raw = null;
 
             if (string.Equals(type, "Feature", StringComparison.OrdinalIgnoreCase))
             {
@@ -29,9 +44,7 @@ public sealed class NwsZoneGeometryService(HttpClient http)
                     geom.ValueKind != JsonValueKind.Null &&
                     geom.ValueKind != JsonValueKind.Undefined)
                 {
-                    string raw = geom.GetRawText();
-                    _cache[zoneUrl] = raw;
-                    return raw;
+                    raw = geom.GetRawText();
                 }
             }
             else if (string.Equals(type, "FeatureCollection", StringComparison.OrdinalIgnoreCase))
@@ -43,19 +56,25 @@ public sealed class NwsZoneGeometryService(HttpClient http)
                         if (!f.TryGetProperty("geometry", out JsonElement geom) ||
                             geom.ValueKind == JsonValueKind.Null ||
                             geom.ValueKind == JsonValueKind.Undefined) continue;
-                        string raw = geom.GetRawText();
-                        _cache[zoneUrl] = raw;
-                        return raw;
+                        raw = geom.GetRawText();
+                        break;
                     }
                 }
+            }
+
+            if (!string.IsNullOrWhiteSpace(raw))
+            {
+                _mem[zoneUrl] = raw;
+                await disk.WriteAsync(zoneUrl, raw).ConfigureAwait(false);
+                return raw;
             }
         }
         catch
         {
-            // ignored
+            // ignore
         }
 
-        _cache[zoneUrl] = null;
+        // IMPORTANT: do NOT cache null (lets retries happen)
         return null;
     }
 }

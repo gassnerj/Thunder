@@ -21,7 +21,9 @@ namespace ThunderApp.Views
     public partial class DashboardView : UserControl
     {
         private static readonly HttpClient _http = new();
-        private static readonly NwsZoneGeometryService _zoneSvc = new(_http);
+        private static readonly SimpleDiskCache _zoneDisk =
+            new(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "cache", "zones"));
+        private static readonly NwsZoneGeometryService _zoneSvc = new(_http, _zoneDisk);
         private bool _mapInitialized;
         private bool _mapReady;
 
@@ -32,6 +34,8 @@ namespace ThunderApp.Views
         private const double MinTrailMoveMeters = 50;
 
         private DashboardViewModel? _vm;
+        
+        private int _alertsUpdateVersion;
 
         public DashboardView()
         {
@@ -72,14 +76,34 @@ namespace ThunderApp.Views
                 _vm.AlertsChanged += Vm_AlertsChanged;
         }
 
-        private async void Vm_AlertsChanged(object? sender, EventArgs e)
+        private void Vm_AlertsChanged(object? sender, EventArgs e)
         {
-            await UpdateAlertPolygonsFromFilteredViewAsync();
+            _ = QueueAlertPolygonUpdateAsync();
         }
 
-        private async void Alerts_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+        private void Alerts_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
         {
-            await UpdateAlertPolygonsFromFilteredViewAsync();
+            _ = QueueAlertPolygonUpdateAsync();
+        }
+        
+        private async Task QueueAlertPolygonUpdateAsync()
+        {
+            if (!_mapReady) return;
+
+            int myVersion = System.Threading.Interlocked.Increment(ref _alertsUpdateVersion);
+
+            // Small debounce: if a bunch of events fire, let them coalesce.
+            await Task.Delay(150);
+
+            // If a newer request arrived during the delay, bail.
+            if (myVersion != _alertsUpdateVersion) return;
+
+            var geojson = await BuildAlertGeoJsonFromFilteredViewAsync();
+
+            // If another update started while we were building, don't apply stale data.
+            if (myVersion != _alertsUpdateVersion) return;
+
+            await SetAlertPolygonsAsync(geojson);
         }
 
         private async void DashboardView_Loaded(object sender, RoutedEventArgs e)
@@ -94,7 +118,7 @@ namespace ThunderApp.Views
         {
             await MapView.EnsureCoreWebView2Async();
 
-            var wwwRoot = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "www");
+            string wwwRoot = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "www");
 
             MapView.CoreWebView2.SetVirtualHostNameToFolderMapping(
                 "app",
@@ -105,7 +129,7 @@ namespace ThunderApp.Views
             {
                 try
                 {
-                    var msg = args.TryGetWebMessageAsString();
+                    string? msg = args.TryGetWebMessageAsString();
 
                     if (string.IsNullOrWhiteSpace(msg)) return;
 
@@ -120,27 +144,25 @@ namespace ThunderApp.Views
                         return;
                     }
 
-                    if (msg.Contains("\"type\":\"polygonClicked\""))
-                    {
-                        using var doc = JsonDocument.Parse(msg);
-                        var root = doc.RootElement;
+                    if (!msg.Contains("\"type\":\"polygonClicked\"")) return;
+                    using JsonDocument doc = JsonDocument.Parse(msg);
+                    JsonElement root = doc.RootElement;
 
-                        var id = root.GetProperty("id").GetString();
-                        if (string.IsNullOrWhiteSpace(id)) return;
+                    string? id = root.GetProperty("id").GetString();
+                    if (string.IsNullOrWhiteSpace(id)) return;
 
-                        await Dispatcher.InvokeAsync(async () => { await RouteToAlertAsync(id); });
-                        return;
-                    }
+                    await Dispatcher.InvokeAsync(async () => { await RouteToAlertAsync(id); });
+                    return;
                 }
                 catch
                 {
                 }
             };
 
-            MapView.NavigationCompleted += async (_, __) =>
+            MapView.NavigationCompleted += (o, __) =>
             {
                 _mapReady = true;
-                await UpdateAlertPolygonsFromFilteredViewAsync();
+                _ = QueueAlertPolygonUpdateAsync();
             };
 
             MapView.Source = new Uri("https://app/map.html");
@@ -148,13 +170,13 @@ namespace ThunderApp.Views
 
         private async Task RouteToAlertAsync(string alertId)
         {
-            if (_vm == null) _vm = DataContext as DashboardViewModel;
+            _vm ??= DataContext as DashboardViewModel;
             if (_vm == null) return;
 
             if (!_lastLat.HasValue || !_lastLon.HasValue)
             {
-                if (double.TryParse(ManualLatTextBox.Text?.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var mLat) &&
-                    double.TryParse(ManualLonTextBox.Text?.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var mLon))
+                if (double.TryParse(ManualLatTextBox.Text?.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out double mLat) &&
+                    double.TryParse(ManualLonTextBox.Text?.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out double mLon))
                 {
                     _lastLat = mLat;
                     _lastLon = mLon;
@@ -172,7 +194,7 @@ namespace ThunderApp.Views
                 }
             }
 
-            var alert = _vm.Alerts.FirstOrDefault(a =>
+            NwsAlert? alert = _vm.Alerts.FirstOrDefault(a =>
                 string.Equals(a.Id, alertId, StringComparison.OrdinalIgnoreCase));
 
             if (alert == null) return;
@@ -182,8 +204,8 @@ namespace ThunderApp.Views
                     alert.GeometryJson,
                     _lastLat.Value,
                     _lastLon.Value,
-                    out var destLat,
-                    out var destLon))
+                    out double destLat,
+                    out double destLon))
                 return;
 
             if (!_mapReady || MapView?.CoreWebView2 == null)
@@ -207,10 +229,10 @@ namespace ThunderApp.Views
 
             try
             {
-                using var doc = JsonDocument.Parse(geometryJson);
-                var root = doc.RootElement;
+                using JsonDocument doc = JsonDocument.Parse(geometryJson);
+                JsonElement root = doc.RootElement;
 
-                var type = root.GetProperty("type").GetString() ?? "";
+                string type = root.GetProperty("type").GetString() ?? "";
 
                 var ring = type switch
                 {
@@ -222,17 +244,15 @@ namespace ThunderApp.Views
                 if (ring.Count == 0)
                     return false;
 
-                double bestDist = double.MaxValue;
+                var bestDist = double.MaxValue;
                 (double Lon, double Lat) best = ring[0];
 
-                foreach (var p in ring)
+                foreach ((double Lon, double Lat) p in ring)
                 {
-                    var d = HaversineMeters(fromLat, fromLon, p.Lat, p.Lon);
-                    if (d < bestDist)
-                    {
-                        bestDist = d;
-                        best = p;
-                    }
+                    double d = HaversineMeters(fromLat, fromLon, p.Lat, p.Lon);
+                    if (!(d < bestDist)) continue;
+                    bestDist = d;
+                    best = p;
                 }
 
                 lat = best.Lat;
@@ -247,21 +267,19 @@ namespace ThunderApp.Views
 
         private static List<(double Lon, double Lat)> ExtractLargestRingFromPolygon(JsonElement geom)
         {
-            var coords = geom.GetProperty("coordinates");
+            JsonElement coords = geom.GetProperty("coordinates");
             if (coords.ValueKind != JsonValueKind.Array) return [];
 
             double bestArea = double.NegativeInfinity;
             List<(double Lon, double Lat)> best = [];
 
-            foreach (var ring in coords.EnumerateArray())
+            foreach (JsonElement ring in coords.EnumerateArray())
             {
                 var pts = ExtractRing(ring);
-                var area = Math.Abs(SignedArea(pts));
-                if (area > bestArea)
-                {
-                    bestArea = area;
-                    best = pts;
-                }
+                double area = Math.Abs(SignedArea(pts));
+                if (!(area > bestArea)) continue;
+                bestArea = area;
+                best = pts;
             }
 
             return best;
@@ -269,25 +287,23 @@ namespace ThunderApp.Views
 
         private static List<(double Lon, double Lat)> ExtractLargestRingFromMultiPolygon(JsonElement geom)
         {
-            var coords = geom.GetProperty("coordinates");
+            JsonElement coords = geom.GetProperty("coordinates");
             if (coords.ValueKind != JsonValueKind.Array) return [];
 
             double bestArea = double.NegativeInfinity;
             List<(double Lon, double Lat)> best = [];
 
-            foreach (var poly in coords.EnumerateArray())
+            foreach (JsonElement poly in coords.EnumerateArray())
             {
                 if (poly.ValueKind != JsonValueKind.Array) continue;
 
-                foreach (var ring in poly.EnumerateArray())
+                foreach (JsonElement ring in poly.EnumerateArray())
                 {
                     var pts = ExtractRing(ring);
-                    var area = Math.Abs(SignedArea(pts));
-                    if (area > bestArea)
-                    {
-                        bestArea = area;
-                        best = pts;
-                    }
+                    double area = Math.Abs(SignedArea(pts));
+                    if (!(area > bestArea)) continue;
+                    bestArea = area;
+                    best = pts;
                 }
             }
 
@@ -301,13 +317,13 @@ namespace ThunderApp.Views
             if (ring.ValueKind != JsonValueKind.Array)
                 return pts;
 
-            foreach (var p in ring.EnumerateArray())
+            foreach (JsonElement p in ring.EnumerateArray())
             {
                 if (p.ValueKind != JsonValueKind.Array) continue;
                 if (p.GetArrayLength() < 2) continue;
 
-                var lon = p[0].GetDouble();
-                var lat = p[1].GetDouble();
+                double lon = p[0].GetDouble();
+                double lat = p[1].GetDouble();
                 pts.Add((lon, lat));
             }
 
@@ -319,10 +335,10 @@ namespace ThunderApp.Views
             if (ring.Count < 3) return 0;
             double a = 0;
 
-            for (int i = 0; i < ring.Count; i++)
+            for (var i = 0; i < ring.Count; i++)
             {
-                var (x1, y1) = ring[i];
-                var (x2, y2) = ring[(i + 1) % ring.Count];
+                (double x1, double y1) = ring[i];
+                (double x2, double y2) = ring[(i + 1) % ring.Count];
                 a += (x1 * y2) - (x2 * y1);
             }
 
@@ -345,17 +361,17 @@ namespace ThunderApp.Views
         {
             if (!_mapReady) return;
 
-            var latText = ManualLatTextBox.Text?.Trim();
-            var lonText = ManualLonTextBox.Text?.Trim();
+            string? latText = ManualLatTextBox.Text?.Trim();
+            string? lonText = ManualLonTextBox.Text?.Trim();
 
-            if (double.TryParse(latText, NumberStyles.Float, CultureInfo.InvariantCulture, out var lat) &&
-                double.TryParse(lonText, NumberStyles.Float, CultureInfo.InvariantCulture, out var lon))
+            if (double.TryParse(latText, NumberStyles.Float, CultureInfo.InvariantCulture, out double lat) &&
+                double.TryParse(lonText, NumberStyles.Float, CultureInfo.InvariantCulture, out double lon))
             {
                 FollowToggle.IsChecked = true;
                 await UpdateMapLocationAsync(lat, lon, DefaultZoom, addTrail: true, forceCenter: true);
             }
 
-            await UpdateAlertPolygonsFromFilteredViewAsync();
+            _ = QueueAlertPolygonUpdateAsync();
         }
 
         public async Task UpdateMapLocationAsync(
@@ -370,7 +386,7 @@ namespace ThunderApp.Views
 
             if (addTrail && _lastLat.HasValue && _lastLon.HasValue)
             {
-                var meters = HaversineMeters(_lastLat.Value, _lastLon.Value, lat, lon);
+                double meters = HaversineMeters(_lastLat.Value, _lastLon.Value, lat, lon);
                 if (meters < MinTrailMoveMeters)
                     addTrail = false;
             }
@@ -424,29 +440,30 @@ namespace ThunderApp.Views
             const double R = 6371000;
             static double ToRad(double deg) => deg * (Math.PI / 180.0);
 
-            var dLat = ToRad(lat2 - lat1);
-            var dLon = ToRad(lon2 - lon1);
+            double dLat = ToRad(lat2 - lat1);
+            double dLon = ToRad(lon2 - lon1);
 
-            var a =
+            double a =
                 Math.Sin(dLat / 2) * Math.Sin(dLat / 2) +
                 Math.Cos(ToRad(lat1)) * Math.Cos(ToRad(lat2)) *
                 Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
 
-            var c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
+            double c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
             return R * c;
         }
 
-        public async Task SetAlertPolygonsAsync(string geoJsonFeatureCollection)
+        private Task SetAlertPolygonsAsync(string geoJsonFeatureCollection)
         {
-            if (!_mapReady || MapView?.CoreWebView2 == null) return;
+            if (!_mapReady || MapView?.CoreWebView2 == null) return Task.CompletedTask;
             MapView.CoreWebView2.PostWebMessageAsString(geoJsonFeatureCollection);
+            return Task.CompletedTask;
         }
 
-        private async Task UpdateAlertPolygonsFromFilteredViewAsync()
+        private async Task<string> BuildAlertGeoJsonFromFilteredViewAsync()
         {
-            if (!_mapReady) return;
+            if (!_mapReady) return "{\"type\":\"FeatureCollection\",\"features\":[]}";
             _vm ??= DataContext as DashboardViewModel;
-            if (_vm?.AlertsView == null) return;
+            if (_vm?.AlertsView == null) return "{\"type\":\"FeatureCollection\",\"features\":[]}";
 
             var visibleAlerts = _vm.AlertsView
                 .Cast<object>()
@@ -504,13 +521,12 @@ namespace ThunderApp.Views
                     a.SenderName,
                     a.Description,
                     a.Instruction,
-                    merged,  // ✅ combined geometry for this alert
+                    merged,
                     null
                 ));
             }
 
-            var geojson = BuildGeoJsonFeatureCollection(expanded);
-            await SetAlertPolygonsAsync(geojson);
+            return BuildGeoJsonFeatureCollection(expanded);
         }
 
         private static string? BuildMergedMultiPolygonGeometry(IReadOnlyList<string> geometries)
@@ -522,15 +538,15 @@ namespace ThunderApp.Views
 
                 try
                 {
-                    foreach (var g in geometries)
+                    foreach (string g in geometries)
                     {
-                        var d = JsonDocument.Parse(g);
+                        JsonDocument d = JsonDocument.Parse(g);
                         docs.Add(d);
 
-                        var root = d.RootElement;
-                        if (!root.TryGetProperty("type", out var t)) continue;
+                        JsonElement root = d.RootElement;
+                        if (!root.TryGetProperty("type", out JsonElement t)) continue;
 
-                        var type = t.GetString();
+                        string? type = t.GetString();
 
                         if (string.Equals(type, "Polygon", StringComparison.OrdinalIgnoreCase))
                         {
@@ -538,7 +554,7 @@ namespace ThunderApp.Views
                         }
                         else if (string.Equals(type, "MultiPolygon", StringComparison.OrdinalIgnoreCase))
                         {
-                            foreach (var poly in root.GetProperty("coordinates").EnumerateArray())
+                            foreach (JsonElement poly in root.GetProperty("coordinates").EnumerateArray())
                                 polygonCoordElements.Add(poly);
                         }
                     }
@@ -554,7 +570,7 @@ namespace ThunderApp.Views
                     w.WritePropertyName("coordinates");
                     w.WriteStartArray();
 
-                    foreach (var polyCoords in polygonCoordElements)
+                    foreach (JsonElement polyCoords in polygonCoordElements)
                         polyCoords.WriteTo(w);
 
                     w.WriteEndArray();
@@ -565,7 +581,7 @@ namespace ThunderApp.Views
                 }
                 finally
                 {
-                    foreach (var d in docs) d.Dispose();
+                    foreach (JsonDocument d in docs) d.Dispose();
                 }
             }
             catch
@@ -584,7 +600,7 @@ namespace ThunderApp.Views
             writer.WritePropertyName("features");
             writer.WriteStartArray();
 
-            foreach (var a in alerts)
+            foreach (NwsAlert a in alerts)
             {
                 if (string.IsNullOrWhiteSpace(a.GeometryJson))
                     continue;

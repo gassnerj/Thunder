@@ -1,19 +1,18 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Data;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using GeoJsonWeather;
 using ThunderApp.Models;
 using ThunderApp.Services;
 
 namespace ThunderApp.ViewModels;
-
-using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
-using System.Collections.ObjectModel;
-using System.ComponentModel;
-using System.Windows.Data;
 
 public partial class DashboardViewModel : ObservableObject
 {
@@ -28,6 +27,9 @@ public partial class DashboardViewModel : ObservableObject
     [ObservableProperty] private AlertFilterSettings filterSettings;
     [ObservableProperty] private string statusText = "Ready";
     [ObservableProperty] private NwsAlert? selectedAlert;
+
+    // WF-style groups (bound in XAML)
+    public ObservableCollection<LifecycleGroupViewModel> LifecycleGroups { get; } = [];
 
     // Event the map listens to
     public event EventHandler? AlertsChanged;
@@ -56,11 +58,85 @@ public partial class DashboardViewModel : ObservableObject
             _log.Log("Settings load failed: " + ex);
         }
 
-        // Whenever ANY filter property changes → refresh + redraw
-        FilterSettings.PropertyChanged += (_,__) => RefreshAlertsView();
+        BuildLifecycleGroups();
 
-        // If you implemented HiddenEventsChanged in your settings
-        FilterSettings.HiddenEventsChanged += (_,__) => RefreshAlertsView();
+        // Refresh the list + map when:
+        // - severity toggles change
+        // - near-me settings change
+        // - category chip changes
+        FilterSettings.PropertyChanged += (_, e) =>
+        {
+            // keep it cheap: only react to relevant properties
+            if (e.PropertyName is nameof(AlertFilterSettings.ShowExtreme)
+                or nameof(AlertFilterSettings.ShowSevere)
+                or nameof(AlertFilterSettings.ShowModerate)
+                or nameof(AlertFilterSettings.ShowMinor)
+                or nameof(AlertFilterSettings.ShowUnknown)
+                or nameof(AlertFilterSettings.UseNearMe)
+                or nameof(AlertFilterSettings.ManualLat)
+                or nameof(AlertFilterSettings.ManualLon)
+                or nameof(AlertFilterSettings.SelectedCategory)
+                or nameof(AlertFilterSettings.DisabledEvents))
+            {
+                RefreshAlertsView();
+                RefreshLifecycleGroupVisibilityFromCategory();
+            }
+        };
+
+        RefreshLifecycleGroupVisibilityFromCategory();
+    }
+
+    private void BuildLifecycleGroups()
+    {
+        LifecycleGroups.Clear();
+
+        // Create groups in WF-ish order
+        var order = new[]
+        {
+            AlertLifecycle.ShortFusedWarnings,
+            AlertLifecycle.LongFusedWarnings,
+            AlertLifecycle.Watches,
+            AlertLifecycle.Advisories,
+            AlertLifecycle.Statements,
+            AlertLifecycle.Discussions,
+            AlertLifecycle.Outlooks
+        };
+
+        foreach (var lc in order)
+            LifecycleGroups.Add(new LifecycleGroupViewModel(lc));
+
+        // Populate from catalog
+        foreach (var def in AlertCatalog.All)
+        {
+            var group = LifecycleGroups.First(g => g.Lifecycle == def.Lifecycle);
+
+            bool enabled = FilterSettings.IsEventEnabled(def.EventName);
+            var vm = new AlertTypeToggleViewModel(def, enabled);
+
+            // THIS is the missing piece you were seeing:
+            // When you flip a toggle, we immediately refresh the view + redraw polygons.
+            vm.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(AlertTypeToggleViewModel.IsEnabled))
+                {
+                    FilterSettings.SetEventEnabled(vm.EventName, vm.IsEnabled);
+
+                    // Persist optional (you can remove if you only want manual Save)
+                    // _settingsSvc.Save(FilterSettings);
+
+                    RefreshAlertsView();
+                }
+            };
+
+            group.Events.Add(vm);
+        }
+    }
+
+    private void RefreshLifecycleGroupVisibilityFromCategory()
+    {
+        // Nothing fancy: we just leave the groups; XAML binds and shows only those with matching category items.
+        // If you later want to hide empty lifecycles, we can add a computed property per group.
+        OnPropertyChanged(nameof(LifecycleGroups));
     }
 
     private int _refreshTick;
@@ -83,8 +159,7 @@ public partial class DashboardViewModel : ObservableObject
         AlertsView?.Refresh();
         AlertsChanged?.Invoke(this, EventArgs.Empty);
     }
-    
-    
+
     private bool FilterAlert(object obj)
     {
         if (obj is not NwsAlert a) return false;
@@ -98,35 +173,26 @@ public partial class DashboardViewModel : ObservableObject
         if (sev.Equals("Minor", StringComparison.OrdinalIgnoreCase) && !FilterSettings.ShowMinor) return false;
         if (sev.Equals("Unknown", StringComparison.OrdinalIgnoreCase) && !FilterSettings.ShowUnknown) return false;
 
-        // ---------------- type (by Event string) ----------------
+        // ---------------- per-event (WF style) ----------------
         string evt = (a.Event ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(evt)) return false;
 
-        bool isTornado = evt.Contains("Tornado", StringComparison.OrdinalIgnoreCase);
-        bool isSevereTs = evt.Contains("Severe Thunderstorm", StringComparison.OrdinalIgnoreCase);
-        bool isFlashFlood = evt.Contains("Flash Flood", StringComparison.OrdinalIgnoreCase);
-        bool isWinter =
-            evt.Contains("Winter", StringComparison.OrdinalIgnoreCase) ||
-            evt.Contains("Blizzard", StringComparison.OrdinalIgnoreCase) ||
-            evt.Contains("Ice", StringComparison.OrdinalIgnoreCase) ||
-            evt.Contains("Snow", StringComparison.OrdinalIgnoreCase) ||
-            evt.Contains("Freezing", StringComparison.OrdinalIgnoreCase);
+        // If we know this event, it must match selected category to be shown.
+        var def = AlertCatalog.All.FirstOrDefault(d => evt.Equals(d.EventName, StringComparison.OrdinalIgnoreCase));
 
-        if (isTornado && !FilterSettings.ShowTornado) return false;
-        if (isSevereTs && !FilterSettings.ShowSevereThunderstorm) return false;
-        if (isFlashFlood && !FilterSettings.ShowFlashFlood) return false;
-        if (isWinter && !FilterSettings.ShowWinter) return false;
+        if (def is not null)
+        {
+            if (def.Category != FilterSettings.SelectedCategory) return false;
+            if (!FilterSettings.IsEventEnabled(def.EventName)) return false;
+            return true;
+        }
 
-        if (isTornado || isSevereTs || isFlashFlood || isWinter)
-            return !FilterSettings.HiddenEvents.Contains(evt);
+        // Unknown events:
+        // Only show them in "Other" category, and allow disabling by name too.
+        if (FilterSettings.SelectedCategory != AlertCategory.Other) return false;
+        if (!FilterSettings.IsEventEnabled(evt)) return false;
 
-        if (!FilterSettings.ShowOther) return false;
-
-        return !FilterSettings.HiddenEvents.Contains(evt);
-    }
-
-    partial void OnFilterSettingsChanged(AlertFilterSettings value)
-    {
-        RefreshAlertsView();
+        return true;
     }
 
     [RelayCommand]
@@ -137,6 +203,15 @@ public partial class DashboardViewModel : ObservableObject
         StatusText = "Saved.";
     }
 
+    [RelayCommand]
+    private void SetCategory(string category)
+    {
+        if (Enum.TryParse<AlertCategory>(category, ignoreCase: true, out var c))
+            FilterSettings.SelectedCategory = c;
+
+        RefreshAlertsView();
+    }
+    
     [RelayCommand]
     internal async Task RefreshAsync()
     {
@@ -150,7 +225,7 @@ public partial class DashboardViewModel : ObservableObject
             if (FilterSettings.UseNearMe)
             {
                 GeoPoint point = await _gps.GetCurrentAsync(CancellationToken.None)
-                                 ?? new GeoPoint(FilterSettings.ManualLat, FilterSettings.ManualLon);
+                                ?? new GeoPoint(FilterSettings.ManualLat, FilterSettings.ManualLon);
 
                 items = await _alerts.GetActiveAlertsForPointAsync(point, CancellationToken.None);
             }
@@ -165,7 +240,6 @@ public partial class DashboardViewModel : ObservableObject
                 Alerts.Add(a);
 
             RefreshAlertsView();
-
             StatusText = $"Loaded {Alerts.Count} alerts.";
         }
         catch (Exception ex)

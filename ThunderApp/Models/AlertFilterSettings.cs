@@ -6,52 +6,41 @@ namespace ThunderApp.Models;
 
 public partial class AlertFilterSettings : ObservableObject
 {
-    // existing ones you already have (example pattern)
+    // severity toggles (you already use these)
     [ObservableProperty] private bool showExtreme = true;
     [ObservableProperty] private bool showSevere = true;
     [ObservableProperty] private bool showModerate = true;
     [ObservableProperty] private bool showMinor = true;
     [ObservableProperty] private bool showUnknown = true;
 
+    // near-me
     [ObservableProperty] private bool useNearMe = false;
     [ObservableProperty] private double manualLat = 0;
     [ObservableProperty] private double manualLon = 0;
 
-    // new type toggles
-    [ObservableProperty] private bool showTornado = true;
-    [ObservableProperty] private bool showSevereThunderstorm = true;
-    [ObservableProperty] private bool showFlashFlood = true;
-    [ObservableProperty] private bool showWinter = true;
-    [ObservableProperty] private bool showOther = true;
+    // WeatherFront-style category chips
+    [ObservableProperty] private AlertCategory selectedCategory = AlertCategory.Severe;
 
-    // keep your existing collection(s)
+    // If an event is in this set => HIDDEN
+    // (we store "disabled" because it's easier to persist deltas)
     [ObservableProperty]
-    private HashSet<string> hiddenEvents = new(StringComparer.OrdinalIgnoreCase);
-    
-    public event EventHandler? HiddenEventsChanged;
+    private HashSet<string> disabledEvents = new(StringComparer.OrdinalIgnoreCase);
 
-    public bool HideEvent(string evt)
+    public bool IsEventEnabled(string evt)
+        => !DisabledEvents.Contains(evt);
+
+    public void SetEventEnabled(string evt, bool enabled)
     {
-        if (string.IsNullOrWhiteSpace(evt)) return false;
+        if (string.IsNullOrWhiteSpace(evt)) return;
 
-        var added = HiddenEvents.Add(evt.Trim());
-        if (added) HiddenEventsChanged?.Invoke(this, EventArgs.Empty);
-        return added;
-    }
+        evt = evt.Trim();
 
-    public bool UnhideEvent(string evt)
-    {
-        if (string.IsNullOrWhiteSpace(evt)) return false;
+        if (enabled)
+            DisabledEvents.Remove(evt);
+        else
+            DisabledEvents.Add(evt);
 
-        var removed = HiddenEvents.Remove(evt.Trim());
-        if (removed) HiddenEventsChanged?.Invoke(this, EventArgs.Empty);
-        return removed;
-    }
-
-    public void ClearHiddenEvents()
-    {
-        if (HiddenEvents.Count == 0) return;
-        HiddenEvents.Clear();
-        HiddenEventsChanged?.Invoke(this, EventArgs.Empty);
+        // Notify that DisabledEvents effectively changed (for filters)
+        OnPropertyChanged(nameof(DisabledEvents));
     }
 }
