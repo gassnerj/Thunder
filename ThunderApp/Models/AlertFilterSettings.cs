@@ -1,22 +1,57 @@
 ﻿using System;
 using System.Collections.Generic;
+using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace ThunderApp.Models;
 
-// Models/AlertFilterSettings.cs
-public sealed class AlertFilterSettings
+public partial class AlertFilterSettings : ObservableObject
 {
-    public bool UseNearMe { get; set; } = false;
-    public double ManualLat { get; set; } = 33.9595562;   // whatever default you want
-    public double ManualLon { get; set; } = -98.6837273;
+    // existing ones you already have (example pattern)
+    [ObservableProperty] private bool showExtreme = true;
+    [ObservableProperty] private bool showSevere = true;
+    [ObservableProperty] private bool showModerate = true;
+    [ObservableProperty] private bool showMinor = true;
+    [ObservableProperty] private bool showUnknown = true;
 
-    // quick toggles
-    public bool ShowExtreme { get; set; } = true;
-    public bool ShowSevere { get; set; } = true;
-    public bool ShowModerate { get; set; } = true;
-    public bool ShowMinor { get; set; } = true;
-    public bool ShowUnknown { get; set; } = true;
+    [ObservableProperty] private bool useNearMe = false;
+    [ObservableProperty] private double manualLat = 0;
+    [ObservableProperty] private double manualLon = 0;
 
-    // optional: per-event toggles (you’ll likely expand this)
-    public HashSet<string> HiddenEvents { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    // new type toggles
+    [ObservableProperty] private bool showTornado = true;
+    [ObservableProperty] private bool showSevereThunderstorm = true;
+    [ObservableProperty] private bool showFlashFlood = true;
+    [ObservableProperty] private bool showWinter = true;
+    [ObservableProperty] private bool showOther = true;
+
+    // keep your existing collection(s)
+    [ObservableProperty]
+    private HashSet<string> hiddenEvents = new(StringComparer.OrdinalIgnoreCase);
+    
+    public event EventHandler? HiddenEventsChanged;
+
+    public bool HideEvent(string evt)
+    {
+        if (string.IsNullOrWhiteSpace(evt)) return false;
+
+        var added = HiddenEvents.Add(evt.Trim());
+        if (added) HiddenEventsChanged?.Invoke(this, EventArgs.Empty);
+        return added;
+    }
+
+    public bool UnhideEvent(string evt)
+    {
+        if (string.IsNullOrWhiteSpace(evt)) return false;
+
+        var removed = HiddenEvents.Remove(evt.Trim());
+        if (removed) HiddenEventsChanged?.Invoke(this, EventArgs.Empty);
+        return removed;
+    }
+
+    public void ClearHiddenEvents()
+    {
+        if (HiddenEvents.Count == 0) return;
+        HiddenEvents.Clear();
+        HiddenEventsChanged?.Invoke(this, EventArgs.Empty);
+    }
 }

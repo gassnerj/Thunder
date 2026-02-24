@@ -34,5 +34,6 @@ namespace GeoJsonWeather
         string Urgency { get; set; }
         string URL { get; set; }
         List<string> ZipCodes { get; set; }
+        string? GeometryJson { get; set; }
     }
 }

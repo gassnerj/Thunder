@@ -290,7 +290,7 @@ namespace GeoJsonWeather
         public new string? ID { get; set; }
         public string? AreaDescription { get; set; }
         public GeoCode GeoCode { get; set; } = new();
-        public List<string>? AffectedZonesUrls { get; set; }
+        public List<string>? AffectedZonesUrls { get; set; }   // <-- NOW POPULATED
         public List<string>? References { get; set; }
         public DateTime Sent { get; set; }
         public DateTime Effective { get; set; }
@@ -316,6 +316,7 @@ namespace GeoJsonWeather
         public List<County>? Counties { get; set; }
         public List<State>? States { get; set; }
         public List<string>? ZipCodes { get; set; }
+        public string? GeometryJson { get; set; }
 
         public virtual Color AlertColor
         {
@@ -333,36 +334,82 @@ namespace GeoJsonWeather
 
         public Alert(JsonElement feature)
         {
-            URL = feature.GetProperty("properties").GetProperty("@id").GetString();
-            Type = feature.GetProperty("properties").GetProperty("@type").GetString();
-            ID = feature.GetProperty("properties").GetProperty("id").GetString();
-            AreaDescription = feature.GetProperty("properties").GetProperty("areaDesc").GetString();
+            // Raw GeoJSON geometry (works for Polygon + MultiPolygon)
+            if (feature.TryGetProperty("geometry", out JsonElement geomEl) &&
+                geomEl.ValueKind != JsonValueKind.Null &&
+                geomEl.ValueKind != JsonValueKind.Undefined)
+            {
+                GeometryJson = geomEl.GetRawText();
+            }
+            else
+            {
+                GeometryJson = null;
+            }
 
-            Sent = ISO8601Parse(feature.GetProperty("properties").GetProperty("sent").GetString() ?? "");
-            Effective = ISO8601Parse(feature.GetProperty("properties").GetProperty("effective").GetString() ?? "");
-            Onset = ISO8601Parse(feature.GetProperty("properties").GetProperty("onset").GetString() ?? "");
-            Expires = ISO8601Parse(feature.GetProperty("properties").GetProperty("expires").GetString() ?? "");
+            var props = feature.GetProperty("properties");
+
+            URL = props.GetProperty("@id").GetString();
+            Type = props.GetProperty("@type").GetString();
+            ID = props.GetProperty("id").GetString();
+            AreaDescription = props.GetProperty("areaDesc").GetString();
+
+            Sent = ISO8601Parse(props.GetProperty("sent").GetString() ?? "");
+            Effective = ISO8601Parse(props.GetProperty("effective").GetString() ?? "");
+            Onset = ISO8601Parse(props.GetProperty("onset").GetString() ?? "");
+            Expires = ISO8601Parse(props.GetProperty("expires").GetString() ?? "");
 
             // Some alerts can have ends = null; your original code would parse null -> now
-            string? endsProp = feature.GetProperty("properties").TryGetProperty("ends", out JsonElement endsEl) ? endsEl.GetString() : null;
+            string? endsProp = props.TryGetProperty("ends", out JsonElement endsEl) ? endsEl.GetString() : null;
             Ends = string.IsNullOrWhiteSpace(endsProp) ? null : ISO8601Parse(endsProp);
 
-            Status = feature.GetProperty("properties").GetProperty("status").GetString();
-            MessageType = feature.GetProperty("properties").GetProperty("messageType").GetString();
-            Severity = feature.GetProperty("properties").GetProperty("severity").GetString();
-            Certainty = feature.GetProperty("properties").GetProperty("certainty").GetString();
-            Urgency = feature.GetProperty("properties").GetProperty("urgency").GetString();
-            Event = feature.GetProperty("properties").GetProperty("event").GetString();
-            Sender = feature.GetProperty("properties").GetProperty("sender").GetString();
-            SenderName = feature.GetProperty("properties").GetProperty("senderName").GetString();
-            Headline = feature.GetProperty("properties").GetProperty("headline").GetString();
-            Description = feature.GetProperty("properties").GetProperty("description").GetString();
-            Instruction = feature.GetProperty("properties").GetProperty("instruction").GetString();
-            Response = feature.GetProperty("properties").GetProperty("response").GetString();
-            Category = feature.GetProperty("properties").GetProperty("category").GetString();
+            Status = props.GetProperty("status").GetString();
+            MessageType = props.GetProperty("messageType").GetString();
+            Severity = props.GetProperty("severity").GetString();
+            Certainty = props.GetProperty("certainty").GetString();
+            Urgency = props.GetProperty("urgency").GetString();
+            Event = props.GetProperty("event").GetString();
+            Sender = props.GetProperty("sender").GetString();
+            SenderName = props.GetProperty("senderName").GetString();
+            Headline = props.GetProperty("headline").GetString();
+            Description = props.GetProperty("description").GetString();
+            Instruction = props.GetProperty("instruction").GetString();
+            Response = props.GetProperty("response").GetString();
+            Category = props.GetProperty("category").GetString();
+
+            // ---------------- affectedZones (IMPLEMENTED) ----------------
+            // Watches/advisories often have geometry = null. The alert tells you which
+            // forecast zones are affected via properties.affectedZones, which you can
+            // fetch to obtain zone polygons.
+            if (props.TryGetProperty("affectedZones", out JsonElement zonesEl) &&
+                zonesEl.ValueKind == JsonValueKind.Array)
+            {
+                var list = new List<string>();
+                foreach (var z in zonesEl.EnumerateArray())
+                {
+                    var url = z.GetString();
+                    if (!string.IsNullOrWhiteSpace(url))
+                        list.Add(url);
+                }
+
+                AffectedZonesUrls = list.Count > 0 ? list : null;
+            }
+            else
+            {
+                AffectedZonesUrls = null;
+            }
+
+            // geometry (legacy object model; keep if you still use it elsewhere)
+            try
+            {
+                Geometry = new Geometry(feature);
+            }
+            catch
+            {
+                Geometry = null;
+            }
 
             // parameters
-            if (feature.GetProperty("properties").TryGetProperty("parameters", out JsonElement paramsEl))
+            if (props.TryGetProperty("parameters", out JsonElement paramsEl))
             {
                 foreach (JsonProperty param in paramsEl.EnumerateObject())
                 {
@@ -372,7 +419,8 @@ namespace GeoJsonWeather
             }
 
             // geocode
-            if (!feature.GetProperty("properties").TryGetProperty("geocode", out JsonElement geoEl)) return;
+            if (!props.TryGetProperty("geocode", out JsonElement geoEl)) return;
+
             if (geoEl.TryGetProperty("UGC", out JsonElement ugcEl))
             {
                 foreach (JsonElement geoCode in ugcEl.EnumerateArray())

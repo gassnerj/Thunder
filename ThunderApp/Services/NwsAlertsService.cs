@@ -45,7 +45,9 @@ public sealed class NwsAlertsService : INwsAlertsService
             Description = a.Description,
             Instruction = a.Instruction,
             AreaDescription = a.AreaDescription,
-            Id = a.ID
+            Id = a.ID,
+            GeometryJson = a.GeometryJson,
+            AffectedZonesUrls =  a.AffectedZonesUrls
         }).ToList();
     }
 }

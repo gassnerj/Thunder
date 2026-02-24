@@ -4,40 +4,56 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
 
+    <!-- Leaflet -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
+    <!-- Routing -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css">
+    <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
+
     <style>
         html, body, #map { height: 100%; margin: 0; }
+
+        .leaflet-routing-container {
+            background: rgba(0,0,0,0.8);
+            color: white;
+        }
     </style>
 </head>
 <body>
 <div id="map"></div>
 
 <script>
-    // ---------------- Map base ----------------
+
+    // =======================
+    // Map Base
+    // =======================
     const map = L.map('map', { zoomControl: true }).setView([39.5, -98.35], 4);
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 18
     }).addTo(map);
 
-    // ---------------- State ----------------
+    // =======================
+    // State
+    // =======================
     let followEnabled = true;
     let gpsMarker = null;
+    let routingControl = null;
+    let radarLayer = null;
 
     let trailPoints = [];
     const TRAIL_MAX_POINTS = 300;
 
-    // Avoid snapping zoom constantly when following
     let lastZoom = map.getZoom();
 
-    // ---------------- Marker + Trail ----------------
+    // =======================
+    // GPS Marker + Trail
+    // =======================
     const trailLine = L.polyline([], {
         weight: 3,
-        opacity: 0.9,
-        // keep above tiles, below polygons
-        pane: "overlayPane"
+        opacity: 0.9
     }).addTo(map);
 
     function ensureMarker(lat, lon) {
@@ -55,34 +71,31 @@
 
     function addTrailPoint(lat, lon) {
         trailPoints.push([lat, lon]);
-        if (trailPoints.length > TRAIL_MAX_POINTS) trailPoints.shift();
+        if (trailPoints.length > TRAIL_MAX_POINTS)
+            trailPoints.shift();
         trailLine.setLatLngs(trailPoints);
     }
 
-    // ---------------- Exposed API for C# ----------------
-    window.setFollow = (enabled) => { followEnabled = !!enabled; };
-    window.getFollow = () => followEnabled;
+    // =======================
+    // Exposed API (C#)
+    // =======================
+    window.setFollow = (enabled) => followEnabled = !!enabled;
 
     window.clearTrail = () => {
         trailPoints = [];
         trailLine.setLatLngs(trailPoints);
     };
 
-    window.setMarker = (lat, lon) => { ensureMarker(lat, lon); };
-
     window.setView = (lat, lon, zoom) => {
         lastZoom = zoom;
         map.setView([lat, lon], zoom);
     };
 
-    // Single call per GPS update from C#
     window.updateGps = (lat, lon, zoom, addToTrail) => {
         ensureMarker(lat, lon);
-
         if (addToTrail) addTrailPoint(lat, lon);
 
         if (followEnabled) {
-            // Only change zoom if it actually changed (prevents "twitchy" behavior)
             if (typeof zoom === "number" && zoom !== lastZoom) {
                 lastZoom = zoom;
                 map.setView([lat, lon], zoom, { animate: true });
@@ -92,8 +105,10 @@
         }
     };
 
-    // ---------------- Disable follow on user interaction ----------------
-    function disableFollowBecauseUser() {
+    // =======================
+    // Disable follow on user movement
+    // =======================
+    function disableFollow() {
         if (!followEnabled) return;
 
         followEnabled = false;
@@ -106,14 +121,12 @@
         }
     }
 
-    map.on('dragstart', disableFollowBecauseUser);
-    map.on('zoomstart', disableFollowBecauseUser);
+    map.on('dragstart', disableFollow);
+    map.on('zoomstart', disableFollow);
 
-    // ---------------- Radar (FIXED) ----------------
-    // RainViewer "nowcast" URL is not stable without selecting a timestamped frame.
-    // Use IEM NEXRAD WMS instead (reliable).
-    let radarLayer = null;
-
+    // =======================
+    // Radar
+    // =======================
     window.setRadarEnabled = (enabled) => {
         if (enabled) {
             if (!radarLayer) {
@@ -123,8 +136,7 @@
                         layers: "nexrad-n0r-900913",
                         format: "image/png",
                         transparent: true,
-                        opacity: 0.55,
-                        zIndex: 600
+                        opacity: 0.55
                     }
                 );
             }
@@ -134,44 +146,154 @@
         }
     };
 
-    window.setRadarOpacity = (opacity) => {
-        if (radarLayer) radarLayer.setOpacity(opacity);
+    // =======================
+    // Routing
+    // =======================
+
+    function postToHost(obj) {
+        if (window.chrome?.webview) {
+            window.chrome.webview.postMessage(JSON.stringify(obj));
+        }
+    }
+
+    function showRouteError(msg) {
+        L.popup()
+            .setLatLng(map.getCenter())
+            .setContent(`<b>Route failed</b><br>${msg}`)
+            .openOn(map);
+    }
+
+    window.clearRoute = () => {
+        if (routingControl) {
+            map.removeControl(routingControl);
+            routingControl = null;
+        }
     };
 
-    // ---------------- Alerts / Polygons ----------------
+    async function snapToRoad(baseUrl, lat, lon) {
+        const url = `${baseUrl}/nearest/v1/driving/${lon},${lat}?number=1`;
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error("Nearest failed");
+
+        const data = await resp.json();
+        const loc = data?.waypoints?.[0]?.location;
+        if (!loc) throw new Error("No nearest location");
+
+        return L.latLng(loc[1], loc[0]);
+    }
+
+    window.setRouteDestination = async (destLat, destLon) => {
+
+        if (!gpsMarker) {
+            showRouteError("No GPS position yet.");
+            return;
+        }
+
+        const primaryBase = "https://router.project-osrm.org";
+        const fallbackBase = "https://routing.openstreetmap.de";
+
+        const primaryRoute = `${primaryBase}/route/v1`;
+        const fallbackRoute = `${fallbackBase}/routed-car/route/v1`;
+
+        const startRaw = gpsMarker.getLatLng();
+        const endRaw = L.latLng(destLat, destLon);
+
+        window.clearRoute();
+
+        try {
+            const start = await snapToRoad(primaryBase, startRaw.lat, startRaw.lng);
+            const end = await snapToRoad(primaryBase, endRaw.lat, endRaw.lng);
+
+            const router = L.Routing.osrmv1({
+                serviceUrl: primaryRoute,
+                profile: "driving"
+            });
+
+            routingControl = L.Routing.control({
+                router,
+                waypoints: [start, end],
+                routeWhileDragging: false,
+                addWaypoints: false,
+                draggableWaypoints: false,
+                showAlternatives: false,
+                fitSelectedRoutes: true,
+                show: true
+            }).addTo(map);
+
+            routingControl.on("routingerror", async () => {
+                try {
+                    window.clearRoute();
+
+                    const start2 = await snapToRoad(fallbackBase, startRaw.lat, startRaw.lng);
+                    const end2 = await snapToRoad(fallbackBase, endRaw.lat, endRaw.lng);
+
+                    const router2 = L.Routing.osrmv1({
+                        serviceUrl: fallbackRoute,
+                        profile: "driving"
+                    });
+
+                    routingControl = L.Routing.control({
+                        router: router2,
+                        waypoints: [start2, end2],
+                        routeWhileDragging: false,
+                        addWaypoints: false,
+                        draggableWaypoints: false,
+                        showAlternatives: false,
+                        fitSelectedRoutes: true,
+                        show: true
+                    }).addTo(map);
+
+                } catch (err2) {
+                    showRouteError(err2.message);
+                }
+            });
+
+        } catch (err) {
+            showRouteError(err.message);
+        }
+
+        followEnabled = false;
+        postToHost({ type: "followChanged", value: false });
+    };
+
+    // =======================
+    // Alerts
+    // =======================
     let didFitAlertsOnce = false;
 
     const alertLayer = L.geoJSON([], {
         style: (feature) => {
             const p = feature.properties || {};
-            const sev = (p.severity || "Unknown").toLowerCase();
+            const sev = (p.severity || "unknown").toLowerCase();
 
-            let stroke = "#4F8BFF";
-            let fill   = "#4F8BFF";
-
-            if (sev === "extreme")       { stroke = "#B026FF"; fill = "#B026FF"; }
-            else if (sev === "severe")   { stroke = "#FF3B30"; fill = "#FF3B30"; }
-            else if (sev === "moderate") { stroke = "#FF9500"; fill = "#FF9500"; }
-            else if (sev === "minor")    { stroke = "#FFD60A"; fill = "#FFD60A"; }
-
-            const affects = !!p.affectsMe;
-            const nearby  = !!p.isNearby;
+            let color = "#4F8BFF";
+            if (sev === "extreme") color = "#B026FF";
+            else if (sev === "severe") color = "#FF3B30";
+            else if (sev === "moderate") color = "#FF9500";
+            else if (sev === "minor") color = "#FFD60A";
 
             return {
-                color: stroke,
-                fillColor: fill,
-                weight: affects ? 4 : 2,
+                color,
+                fillColor: color,
+                weight: 2,
                 opacity: 1,
-                fillOpacity: affects ? 0.28 : (nearby ? 0.16 : 0.12),
-                // push above radar
-                pane: "overlayPane"
+                fillOpacity: 0.18
             };
         },
         onEachFeature: (feature, layer) => {
             const p = feature.properties || {};
-            const title = p.event || "Alert";
-            const headline = p.headline || "";
-            layer.bindPopup(`<b>${title}</b><br>${headline}`);
+            layer.bindPopup(`<b>${p.event || "Alert"}</b><br>${p.headline || ""}`);
+
+            layer.on("click", () => {
+                if (!p.id) return;
+
+                if (window.chrome?.webview) {
+                    window.chrome.webview.postMessage(JSON.stringify({
+                        type: "polygonClicked",
+                        id: p.id
+                    }));
+                }
+            });
         }
     }).addTo(map);
 
@@ -180,13 +302,11 @@
         alertLayer.clearLayers();
         alertLayer.addData(gj);
 
-        // Fit once (optional) so you don't keep snapping view
         if (!didFitAlertsOnce) {
             didFitAlertsOnce = true;
-            try {
-                const b = alertLayer.getBounds();
-                if (b && b.isValid()) map.fitBounds(b, { padding: [20, 20] });
-            } catch {}
+            const b = alertLayer.getBounds();
+            if (b && b.isValid())
+                map.fitBounds(b, { padding: [20, 20] });
         }
     };
 
@@ -195,33 +315,29 @@
         didFitAlertsOnce = false;
     };
 
-    // WebView2 message handler:
-    // - if you send raw FeatureCollection string: it will work
-    // - if later you send JSON envelope {type:"alerts", geojson:"..."} it will work
+    // =======================
+    // WebView2 Listener
+    // =======================
     if (window.chrome?.webview) {
         window.chrome.webview.addEventListener('message', e => {
             try {
                 const data = e.data;
 
-                // If envelope format
                 if (typeof data === "string" && data.trim().startsWith("{")) {
                     const obj = JSON.parse(data);
-                    if (obj && obj.type === "alerts" && obj.geojson) {
+                    if (obj.type === "alerts" && obj.geojson) {
                         window.setAlerts(obj.geojson);
                         return;
                     }
                 }
 
-                // Otherwise treat as FeatureCollection string
                 window.setAlerts(data);
-            } catch {
-                // ignore
-            }
+            } catch {}
         });
     }
 
-    // Default: radar OFF until user toggles it (less surprise)
     window.setRadarEnabled(false);
+
 </script>
 </body>
 </html>

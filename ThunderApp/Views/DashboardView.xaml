@@ -1,9 +1,72 @@
 ﻿<UserControl x:Class="ThunderApp.Views.DashboardView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf">
+             xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+             xmlns:conv="clr-namespace:ThunderApp.Converters"
+             >
 
     <UserControl.Resources>
+
+        <conv:SeverityToBrushConverter x:Key="SeverityToBrush" />
+        <!-- ================= Scrollbars (thin + modern, VERTICAL ONLY) ================= -->
+        <Style x:Key="ThinScrollBar" TargetType="{x:Type ScrollBar}">
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Style.Triggers>
+
+                <!-- Only restyle VERTICAL scrollbars -->
+                <Trigger Property="Orientation" Value="Vertical">
+                    <Setter Property="Width" Value="10" />
+                    <Setter Property="Background" Value="Transparent" />
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="{x:Type ScrollBar}">
+                                <Grid Margin="2" Background="Transparent">
+                                    <Track x:Name="PART_Track" IsDirectionReversed="True">
+                                        <Track.DecreaseRepeatButton>
+                                            <RepeatButton Command="ScrollBar.LineUpCommand"
+                                                          Focusable="False"
+                                                          IsTabStop="False"
+                                                          Opacity="0" />
+                                        </Track.DecreaseRepeatButton>
+
+                                        <Track.Thumb>
+                                            <Thumb Focusable="False">
+                                                <Thumb.Template>
+                                                    <ControlTemplate TargetType="Thumb">
+                                                        <Border CornerRadius="6"
+                                                                Background="#445066" />
+                                                    </ControlTemplate>
+                                                </Thumb.Template>
+                                            </Thumb>
+                                        </Track.Thumb>
+
+                                        <Track.IncreaseRepeatButton>
+                                            <RepeatButton Command="ScrollBar.LineDownCommand"
+                                                          Focusable="False"
+                                                          IsTabStop="False"
+                                                          Opacity="0" />
+                                        </Track.IncreaseRepeatButton>
+                                    </Track>
+                                </Grid>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Trigger>
+
+                <!-- Horizontal: DISABLE completely (prevents the weird blue line & dots) -->
+                <Trigger Property="Orientation" Value="Horizontal">
+                    <Setter Property="Height" Value="0" />
+                    <Setter Property="Opacity" Value="0" />
+                    <Setter Property="IsHitTestVisible" Value="False" />
+                    <Setter Property="Focusable" Value="False" />
+                </Trigger>
+
+            </Style.Triggers>
+        </Style>
+
+        <!-- REMOVE the global ScrollViewer style that can bleed into other controls -->
+        <!-- (Intentionally no unkeyed ScrollViewer style here) -->
+
         <!-- Dashboard toolbar buttons -->
         <Style x:Key="DashActionButton" TargetType="Button">
             <Setter Property="Height" Value="38" />
@@ -112,6 +175,7 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
         <Style TargetType="Button">
             <Setter Property="Height" Value="36" />
             <Setter Property="Padding" Value="14,0" />
@@ -145,6 +209,26 @@
         <Style TargetType="ListView">
             <Setter Property="Background" Value="{DynamicResource Surface}" />
             <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto"/>
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled"/>
+        </Style>
+
+        <!-- Uniform sized list items + kill default selection rectangle -->
+        <Style x:Key="AlertListItemStyle" TargetType="ListViewItem">
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0,0,0,10" />
+            <Setter Property="MinHeight" Value="102" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListViewItem">
+                        <ContentPresenter />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
     </UserControl.Resources>
@@ -182,14 +266,42 @@
                     <TextBox x:Name="ManualLatTextBox"
                              Grid.Column="0"
                              ToolTip="Latitude"
-                             Text="{Binding FilterSettings.ManualLat}" />
+                             Text="{Binding FilterSettings.ManualLat, UpdateSourceTrigger=PropertyChanged}" />
 
                     <TextBox x:Name="ManualLonTextBox"
                              Grid.Column="2"
                              ToolTip="Longitude"
-                             Text="{Binding FilterSettings.ManualLon}" />
+                             Text="{Binding FilterSettings.ManualLon, UpdateSourceTrigger=PropertyChanged}" />
                 </Grid>
 
+                <Separator Margin="0,12,0,12"/>
+
+                <TextBlock Text="Alert Type"
+                           FontWeight="SemiBold"
+                           Margin="0,0,0,6"/>
+
+                <WrapPanel>
+                    <CheckBox Content="Tornado" Foreground="{DynamicResource Text}"
+                              IsChecked="{Binding FilterSettings.ShowTornado, UpdateSourceTrigger=PropertyChanged}"
+                              Margin="0,0,12,6"/>
+
+                    <CheckBox Content="Severe T-Storm" Foreground="{DynamicResource Text}"
+                              IsChecked="{Binding FilterSettings.ShowSevereThunderstorm, UpdateSourceTrigger=PropertyChanged}"
+                              Margin="0,0,12,6"/>
+
+                    <CheckBox Content="Flash Flood" Foreground="{DynamicResource Text}"
+                              IsChecked="{Binding FilterSettings.ShowFlashFlood, UpdateSourceTrigger=PropertyChanged}"
+                              Margin="0,0,12,6"/>
+
+                    <CheckBox Content="Winter" Foreground="{DynamicResource Text}"
+                              IsChecked="{Binding FilterSettings.ShowWinter, UpdateSourceTrigger=PropertyChanged}"
+                              Margin="0,0,12,6"/>
+
+                    <CheckBox Content="Other" Foreground="{DynamicResource Text}"
+                              IsChecked="{Binding FilterSettings.ShowOther, UpdateSourceTrigger=PropertyChanged}"
+                              Margin="0,0,12,6"/>
+                </WrapPanel>
+                
                 <Separator Margin="0,0,0,12" />
 
                 <TextBlock Text="Severity"
@@ -198,15 +310,20 @@
 
                 <WrapPanel>
                     <CheckBox Content="Extreme" Foreground="{DynamicResource Text}"
-                              IsChecked="{Binding FilterSettings.ShowExtreme}" Margin="0,0,12,6" />
+                              IsChecked="{Binding FilterSettings.ShowExtreme, UpdateSourceTrigger=PropertyChanged}"
+                              Margin="0,0,12,6" />
                     <CheckBox Content="Severe" Foreground="{DynamicResource Text}"
-                              IsChecked="{Binding FilterSettings.ShowSevere}" Margin="0,0,12,6" />
+                              IsChecked="{Binding FilterSettings.ShowSevere, UpdateSourceTrigger=PropertyChanged}"
+                              Margin="0,0,12,6" />
                     <CheckBox Content="Moderate" Foreground="{DynamicResource Text}"
-                              IsChecked="{Binding FilterSettings.ShowModerate}" Margin="0,0,12,6" />
+                              IsChecked="{Binding FilterSettings.ShowModerate, UpdateSourceTrigger=PropertyChanged}"
+                              Margin="0,0,12,6" />
                     <CheckBox Content="Minor" Foreground="{DynamicResource Text}"
-                              IsChecked="{Binding FilterSettings.ShowMinor}" Margin="0,0,12,6" />
+                              IsChecked="{Binding FilterSettings.ShowMinor, UpdateSourceTrigger=PropertyChanged}"
+                              Margin="0,0,12,6" />
                     <CheckBox Content="Unknown" Foreground="{DynamicResource Text}"
-                              IsChecked="{Binding FilterSettings.ShowUnknown}" Margin="0,0,12,6" />
+                              IsChecked="{Binding FilterSettings.ShowUnknown, UpdateSourceTrigger=PropertyChanged}"
+                              Margin="0,0,12,6" />
                 </WrapPanel>
 
                 <Separator Margin="0,12,0,12" />
@@ -216,12 +333,12 @@
                     <Button Content="Refresh"
                             Style="{StaticResource DashActionButton}"
                             Command="{Binding RefreshCommand}"
-                            Margin="0,0,8,8"/>
+                            Margin="0,0,8,8" />
 
                     <Button Content="Update Map"
                             Style="{StaticResource DashActionButton}"
                             Click="UpdateMap_OnClick"
-                            Margin="0,0,0,8"/>
+                            Margin="0,0,0,8" />
 
                     <ToggleButton x:Name="FollowToggle"
                                   Content="Follow"
@@ -229,17 +346,22 @@
                                   IsChecked="True"
                                   Checked="FollowToggle_Checked"
                                   Unchecked="FollowToggle_Unchecked"
-                                  Margin="0,0,8,8"/>
+                                  Margin="0,0,8,8" />
 
                     <Button Content="Clear Trail"
                             Style="{StaticResource DashActionButton}"
                             Click="ClearTrail_OnClick"
-                            Margin="0,0,0,8"/>
+                            Margin="0,0,0,8" />
+                    
+                    <Button Content="Clear Route"
+                            Style="{StaticResource DashActionButton}"
+                            Click="ClearRoute_OnClick"
+                            Margin="0,0,0,8" />
 
                     <Button Content="Save"
                             Style="{StaticResource DashActionButton}"
                             Command="{Binding SaveFiltersCommand}"
-                            Margin="0,0,8,0"/>
+                            Margin="0,0,8,0" />
 
                     <ToggleButton x:Name="RadarToggle"
                                   Content="Radar"
@@ -247,7 +369,7 @@
                                   IsChecked="False"
                                   Checked="Radar_Checked"
                                   Unchecked="Radar_Unchecked"
-                                  Margin="0,0,0,0"/>
+                                  Margin="0,0,0,0" />
                 </UniformGrid>
 
                 <TextBlock Style="{StaticResource DashMuted}"
@@ -285,31 +407,218 @@
                                    Text="{Binding Alerts.Count, StringFormat={}{0} total}" />
                     </DockPanel>
 
-                    <ListView Grid.Row="2"
-                              ItemsSource="{Binding AlertsView}">
-                        <ListView.ItemTemplate>
-                            <DataTemplate>
-                                <Border Background="{DynamicResource Surface2}"
-                                        BorderBrush="{DynamicResource Border}"
-                                        BorderThickness="1"
-                                        CornerRadius="10"
-                                        Padding="12"
-                                        Margin="0,0,0,10">
-                                    <StackPanel>
-                                        <TextBlock Text="{Binding Event}"
-                                                   FontWeight="SemiBold" />
-                                        <TextBlock Text="{Binding Headline}"
-                                                   Foreground="{DynamicResource Muted}"
-                                                   Margin="0,4,0,6"
-                                                   TextWrapping="Wrap" />
-                                        <TextBlock Text="{Binding AreaDesc}"
-                                                   Foreground="{DynamicResource Muted}"
-                                                   FontSize="12" />
-                                    </StackPanel>
-                                </Border>
-                            </DataTemplate>
-                        </ListView.ItemTemplate>
-                    </ListView>
+                    <!-- Master / Detail -->
+                    <Grid Grid.Row="2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="12" />
+                            <ColumnDefinition Width="1.25*" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- LIST -->
+                        <ListView Grid.Column="0"
+                                  ItemsSource="{Binding AlertsView}"
+                                  SelectedItem="{Binding SelectedAlert, Mode=TwoWay}"
+                                  ItemContainerStyle="{StaticResource AlertListItemStyle}">
+                            <ListView.Resources>
+                                <Style TargetType="{x:Type ScrollBar}" BasedOn="{StaticResource ThinScrollBar}"/>
+                            </ListView.Resources>
+
+                            <ListView.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="{DynamicResource Surface2}"
+                                            CornerRadius="10"
+                                            Padding="0">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="BorderBrush" Value="{DynamicResource Border}" />
+                                                <Setter Property="BorderThickness" Value="1" />
+                                                <Setter Property="Effect">
+                                                    <Setter.Value>
+                                                        <DropShadowEffect BlurRadius="12" ShadowDepth="0" Opacity="0.22"/>
+                                                    </Setter.Value>
+                                                </Setter>
+
+                                                <!-- Selection: subtle background ONLY (no blue outline line) -->
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListViewItem}, Path=IsSelected}"
+                                                                 Value="True">
+                                                        <Setter Property="Background" Value="#1A263B" />
+                                                        <Setter Property="BorderBrush" Value="{DynamicResource Border}" />
+                                                        <Setter Property="BorderThickness" Value="1" />
+                                                        <Setter Property="Effect">
+                                                            <Setter.Value>
+                                                                <DropShadowEffect BlurRadius="18" ShadowDepth="0" Opacity="0.35"/>
+                                                            </Setter.Value>
+                                                        </Setter>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="6" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <!-- Accent bar -->
+                                            <Border Grid.Column="0"
+                                                    Background="{DynamicResource Accent2}"
+                                                    CornerRadius="10,0,0,10" />
+
+                                            <Grid Grid.Column="1" Margin="12">
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto" />
+                                                    <RowDefinition Height="Auto" />
+                                                    <RowDefinition Height="Auto" />
+                                                </Grid.RowDefinitions>
+
+                                                <Grid Grid.Row="0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <TextBlock Grid.Column="0"
+                                                               Text="{Binding Event}"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="{DynamicResource Text}"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               Margin="0,0,10,0" />
+
+                                                    <Border Grid.Column="1"
+                                                            Background="{Binding Severity, Converter={StaticResource SeverityToBrush}}"
+                                                            CornerRadius="10"
+                                                            Padding="10,3"
+                                                            VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding Severity}"
+                                                                   Foreground="White"
+                                                                   FontSize="12"
+                                                                   FontWeight="SemiBold" />
+                                                    </Border>
+                                                </Grid>
+
+                                                <TextBlock Grid.Row="1"
+                                                           Text="{Binding Headline}"
+                                                           Foreground="{DynamicResource Text}"
+                                                           Opacity="0.92"
+                                                           Margin="0,6,0,6"
+                                                           TextWrapping="Wrap"
+                                                           MaxHeight="44" />
+
+                                                <TextBlock Grid.Row="2"
+                                                           Text="{Binding AreaDescription}"
+                                                           Foreground="{DynamicResource Muted}"
+                                                           FontSize="12"
+                                                           TextTrimming="CharacterEllipsis" />
+                                            </Grid>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+
+                        <!-- DETAIL -->
+                        <Border Grid.Column="2"
+                                Background="{DynamicResource Surface2}"
+                                BorderBrush="{DynamicResource Border}"
+                                BorderThickness="1"
+                                CornerRadius="12"
+                                Padding="14">
+                            <ContentControl Content="{Binding SelectedAlert}">
+                                <ContentControl.ContentTemplate>
+                                    <DataTemplate>
+                                        <!-- IMPORTANT: Explicitly disable horizontal scrolling here -->
+                                        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                                      HorizontalScrollBarVisibility="Disabled">
+                                            <ScrollViewer.Resources>
+                                                <Style TargetType="{x:Type ScrollBar}" BasedOn="{StaticResource ThinScrollBar}"/>
+                                            </ScrollViewer.Resources>
+
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Event}"
+                                                           FontSize="18"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{DynamicResource Text}" />
+
+                                                <TextBlock Text="{Binding Headline}"
+                                                           Margin="0,6,0,12"
+                                                           Foreground="{DynamicResource Muted}"
+                                                           TextWrapping="Wrap" />
+
+                                                <WrapPanel Margin="0,0,0,12">
+                                                    <Border Background="{Binding Severity, Converter={StaticResource SeverityToBrush}}"
+                                                            CornerRadius="10"
+                                                            Padding="10,3"
+                                                            Margin="0,0,8,0">
+                                                        <TextBlock Text="{Binding Severity}"
+                                                                   Foreground="White"
+                                                                   FontWeight="SemiBold"
+                                                                   FontSize="12" />
+                                                    </Border>
+
+                                                    <Border Background="{DynamicResource Accent2}"
+                                                            CornerRadius="10"
+                                                            Padding="10,3"
+                                                            Margin="0,0,8,0">
+                                                        <TextBlock Text="{Binding Urgency}"
+                                                                   Foreground="White"
+                                                                   FontWeight="SemiBold"
+                                                                   FontSize="12" />
+                                                    </Border>
+                                                </WrapPanel>
+
+                                                <TextBlock Text="{Binding AreaDescription}"
+                                                           Foreground="{DynamicResource Text}"
+                                                           Opacity="0.92"
+                                                           TextWrapping="Wrap"
+                                                           Margin="0,0,0,14" />
+
+                                                <TextBlock Text="Description"
+                                                           Foreground="{DynamicResource Text}"
+                                                           FontWeight="SemiBold"
+                                                           Margin="0,0,0,6" />
+
+                                                <TextBlock Text="{Binding Description}"
+                                                           Foreground="{DynamicResource Muted}"
+                                                           TextWrapping="Wrap" />
+
+                                                <TextBlock Text="Instructions"
+                                                           Foreground="{DynamicResource Text}"
+                                                           FontWeight="SemiBold"
+                                                           Margin="0,16,0,6" />
+
+                                                <TextBlock Text="{Binding Instruction}"
+                                                           Foreground="{DynamicResource Muted}"
+                                                           TextWrapping="Wrap" />
+                                            </StackPanel>
+                                        </ScrollViewer>
+                                    </DataTemplate>
+                                </ContentControl.ContentTemplate>
+
+                                <ContentControl.Style>
+                                    <Style TargetType="ContentControl">
+                                        <Style.Triggers>
+                                            <Trigger Property="Content" Value="{x:Null}">
+                                                <Setter Property="ContentTemplate">
+                                                    <Setter.Value>
+                                                        <DataTemplate>
+                                                            <TextBlock Text="Select an alert to view details."
+                                                                       Foreground="{DynamicResource Muted}"
+                                                                       VerticalAlignment="Center"
+                                                                       HorizontalAlignment="Center" />
+                                                        </DataTemplate>
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </Trigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ContentControl.Style>
+                            </ContentControl>
+                        </Border>
+
+                    </Grid>
                 </Grid>
             </Border>
 

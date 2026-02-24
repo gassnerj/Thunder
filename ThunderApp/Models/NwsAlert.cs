@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 
 namespace ThunderApp.Models;
 
@@ -15,7 +16,9 @@ public sealed record NwsAlert(
     string AreaDescription,
     string? SenderName,
     string? Description,
-    string? Instruction
+    string? Instruction,
+    string? GeometryJson,
+    IReadOnlyList<string>? AffectedZonesUrls   // <-- NEW
 )
 {
     public NwsAlert() : this(
@@ -29,6 +32,8 @@ public sealed record NwsAlert(
         null,
         null,
         string.Empty,
+        null,
+        null,
         null,
         null,
         null
