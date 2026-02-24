@@ -113,30 +113,27 @@ public partial class DashboardViewModel : ObservableObject
             bool enabled = FilterSettings.IsEventEnabled(def.EventName);
             var vm = new AlertTypeToggleViewModel(def, enabled);
 
-            // THIS is the missing piece you were seeing:
-            // When you flip a toggle, we immediately refresh the view + redraw polygons.
+            // When you flip a toggle, refresh the view + redraw polygons.
             vm.PropertyChanged += (_, e) =>
             {
                 if (e.PropertyName == nameof(AlertTypeToggleViewModel.IsEnabled))
                 {
                     FilterSettings.SetEventEnabled(vm.EventName, vm.IsEnabled);
-
-                    // Persist optional (you can remove if you only want manual Save)
-                    // _settingsSvc.Save(FilterSettings);
-
                     RefreshAlertsView();
                 }
             };
 
             group.Events.Add(vm);
         }
+
+        // Apply initial category filter to the toggle list
+        RefreshLifecycleGroupVisibilityFromCategory();
     }
 
     private void RefreshLifecycleGroupVisibilityFromCategory()
     {
-        // Nothing fancy: we just leave the groups; XAML binds and shows only those with matching category items.
-        // If you later want to hide empty lifecycles, we can add a computed property per group.
-        OnPropertyChanged(nameof(LifecycleGroups));
+        foreach (var g in LifecycleGroups)
+            g.SetSelectedCategory(FilterSettings.SelectedCategory);
     }
 
     private int _refreshTick;

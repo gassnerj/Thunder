@@ -26,6 +26,21 @@ public partial class AlertFilterSettings : ObservableObject
     [ObservableProperty]
     private HashSet<string> disabledEvents = new(StringComparer.OrdinalIgnoreCase);
 
+    // -----------------------------------------------------------------
+    // Compatibility helpers
+    // Some view models (and older code) use the "HiddenEvents" wording.
+    // Keep both names so bindings don't break.
+    // -----------------------------------------------------------------
+
+    /// <summary>
+    /// Alias for <see cref="DisabledEvents"/>.
+    /// If an event is present in this set, it is considered hidden/disabled.
+    /// </summary>
+    public HashSet<string> HiddenEvents => DisabledEvents;
+
+    public void HideEvent(string evt) => SetEventEnabled(evt, enabled: false);
+    public void UnhideEvent(string evt) => SetEventEnabled(evt, enabled: true);
+
     public bool IsEventEnabled(string evt)
         => !DisabledEvents.Contains(evt);
 
