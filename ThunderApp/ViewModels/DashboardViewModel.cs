@@ -34,6 +34,12 @@ public partial class DashboardViewModel : ObservableObject
     // Event the map listens to
     public event EventHandler? AlertsChanged;
 
+    // Prevent hammering RefreshAlertsView() during bulk enable/disable operations.
+    private bool _suppressToggleHandlers;
+
+    // Track dynamically discovered event names so every polygon can be toggled.
+    private readonly HashSet<string> _dynamicEventNames = new(StringComparer.OrdinalIgnoreCase);
+
     public DashboardViewModel(
         INwsAlertsService alerts,
         IGpsService gps,
@@ -119,7 +125,8 @@ public partial class DashboardViewModel : ObservableObject
                 if (e.PropertyName == nameof(AlertTypeToggleViewModel.IsEnabled))
                 {
                     FilterSettings.SetEventEnabled(vm.EventName, vm.IsEnabled);
-                    RefreshAlertsView();
+                    if (!_suppressToggleHandlers)
+                        RefreshAlertsView();
                 }
             };
 
@@ -128,6 +135,63 @@ public partial class DashboardViewModel : ObservableObject
 
         // Apply initial category filter to the toggle list
         RefreshLifecycleGroupVisibilityFromCategory();
+    }
+
+    private void EnsureTogglesForLoadedAlerts(IEnumerable<NwsAlert> items)
+    {
+        // Add missing toggles for event types not present in AlertCatalog.
+        // These are the "mystery polygons" the user can't turn off.
+        var events = items
+            .Select(a => (a.Event ?? "").Trim())
+            .Where(e => !string.IsNullOrWhiteSpace(e))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (events.Count == 0) return;
+
+        var existing = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var g in LifecycleGroups)
+            foreach (var ev in g.Events)
+                existing.Add(ev.EventName);
+
+        bool addedAny = false;
+
+        foreach (var evt in events)
+        {
+            if (existing.Contains(evt))
+                continue;
+
+            if (!_dynamicEventNames.Add(evt))
+                continue;
+
+            var lifecycle = AlertClassifier.GetLifecycle(evt);
+            var cat = AlertClassifier.GetCategories(evt).FirstOrDefault();
+            if (!Enum.IsDefined(typeof(AlertCategory), cat))
+                cat = AlertCategory.Other;
+
+            var def = new AlertTypeDefinition(evt, cat, lifecycle);
+            var group = LifecycleGroups.FirstOrDefault(g => g.Lifecycle == lifecycle)
+                        ?? LifecycleGroups.First(g => g.Lifecycle == AlertLifecycle.LongFusedWarnings);
+
+            bool enabled = FilterSettings.IsEventEnabled(def.EventName);
+            var vm = new AlertTypeToggleViewModel(def, enabled);
+
+            vm.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(AlertTypeToggleViewModel.IsEnabled))
+                {
+                    FilterSettings.SetEventEnabled(vm.EventName, vm.IsEnabled);
+                    if (!_suppressToggleHandlers)
+                        RefreshAlertsView();
+                }
+            };
+
+            group.Events.Add(vm);
+            addedAny = true;
+        }
+
+        if (addedAny)
+            RefreshLifecycleGroupVisibilityFromCategory();
     }
 
     private void RefreshLifecycleGroupVisibilityFromCategory()
@@ -174,19 +238,18 @@ public partial class DashboardViewModel : ObservableObject
         string evt = (a.Event ?? "").Trim();
         if (string.IsNullOrWhiteSpace(evt)) return false;
 
-        // If we know this event, it must match selected category to be shown.
+        // If we know this event, it must be enabled.
+        // IMPORTANT: SelectedCategory is for *organizing the filter UI only*.
+        // It must NOT hide alerts from other categories.
         var def = AlertCatalog.All.FirstOrDefault(d => evt.Equals(d.EventName, StringComparison.OrdinalIgnoreCase));
 
         if (def is not null)
         {
-            if (def.Category != FilterSettings.SelectedCategory) return false;
             if (!FilterSettings.IsEventEnabled(def.EventName)) return false;
             return true;
         }
 
-        // Unknown events:
-        // Only show them in "Other" category, and allow disabling by name too.
-        if (FilterSettings.SelectedCategory != AlertCategory.Other) return false;
+        // Unknown events: allow disabling by name.
         if (!FilterSettings.IsEventEnabled(evt)) return false;
 
         return true;
@@ -205,6 +268,48 @@ public partial class DashboardViewModel : ObservableObject
     {
         if (Enum.TryParse<AlertCategory>(category, ignoreCase: true, out var c))
             FilterSettings.SelectedCategory = c;
+
+        RefreshAlertsView();
+    }
+
+    [RelayCommand]
+    private void EnableAllAlertTypes()
+    {
+        _suppressToggleHandlers = true;
+        try
+        {
+            foreach (var g in LifecycleGroups)
+                foreach (var ev in g.Events)
+                {
+                    FilterSettings.SetEventEnabled(ev.EventName, enabled: true);
+                    ev.IsEnabled = true;
+                }
+        }
+        finally
+        {
+            _suppressToggleHandlers = false;
+        }
+
+        RefreshAlertsView();
+    }
+
+    [RelayCommand]
+    private void DisableAllAlertTypes()
+    {
+        _suppressToggleHandlers = true;
+        try
+        {
+            foreach (var g in LifecycleGroups)
+                foreach (var ev in g.Events)
+                {
+                    FilterSettings.SetEventEnabled(ev.EventName, enabled: false);
+                    ev.IsEnabled = false;
+                }
+        }
+        finally
+        {
+            _suppressToggleHandlers = false;
+        }
 
         RefreshAlertsView();
     }
@@ -235,6 +340,9 @@ public partial class DashboardViewModel : ObservableObject
 
             foreach (NwsAlert a in items.OrderByDescending(x => x.Effective ?? DateTimeOffset.MinValue))
                 Alerts.Add(a);
+
+            // Ensure *every* loaded event type is represented in the filter UI.
+            EnsureTogglesForLoadedAlerts(items);
 
             RefreshAlertsView();
             StatusText = $"Loaded {Alerts.Count} alerts.";

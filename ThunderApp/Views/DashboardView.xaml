@@ -385,21 +385,26 @@
 
     <Grid Background="Transparent">
 
-        <!-- Layout: Filters | Alerts + Map -->
+        <!-- Layout: Side panel | Alerts + Map -->
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="320" />
+            <!-- Keep the original side panel for command buttons/status -->
+            <ColumnDefinition Width="360" />
             <ColumnDefinition Width="12" />
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
 
         <!-- ================= LEFT COLUMN (Filters) ================= -->
 
-        <Border Grid.Column="0" Style="{StaticResource DashCard}">
+        <Border Grid.Column="0" Style="{StaticResource DashCard}" >
             <StackPanel>
 
                 <TextBlock Style="{StaticResource DashHeader}"
-                           Text="Alert Filters"
+                           Text="Controls"
                            Margin="0,0,0,10" />
+
+                <TextBlock Style="{StaticResource DashMuted}"
+                           Text="Map location"
+                           Margin="0,0,0,8" />
 
                 <CheckBox Content="Use GPS Location"
                           Foreground="{DynamicResource Text}"
@@ -424,109 +429,13 @@
                              Text="{Binding FilterSettings.ManualLon, UpdateSourceTrigger=PropertyChanged}" />
                 </Grid>
 
-                <Separator Margin="0,12,0,12" />
-
-                <TextBlock Text="Alert Types"
-                           FontWeight="SemiBold"
-                           Margin="0,0,0,6" />
-
-                <!-- Category chips (WF style) -->
-                <WrapPanel Margin="0,0,0,10">
-                    <!-- These are simple buttons; no “expand/collapse”, no ugly arrows. -->
-                    <Button Content="Severe" Style="{StaticResource DashActionButton}" Margin="0,0,10,8"
-                            Command="{Binding SetCategoryCommand}" CommandParameter="Severe" />
-                    <Button Content="Tropical" Style="{StaticResource DashActionButton}" Margin="0,0,10,8"
-                            Command="{Binding SetCategoryCommand}" CommandParameter="Tropical" />
-                    <Button Content="Winter" Style="{StaticResource DashActionButton}" Margin="0,0,10,8"
-                            Command="{Binding SetCategoryCommand}" CommandParameter="Winter" />
-                    <Button Content="Hydrology" Style="{StaticResource DashActionButton}" Margin="0,0,10,8"
-                            Command="{Binding SetCategoryCommand}" CommandParameter="Hydrology" />
-                    <Button Content="Wind" Style="{StaticResource DashActionButton}" Margin="0,0,10,8"
-                            Command="{Binding SetCategoryCommand}" CommandParameter="Wind" />
-                    <Button Content="Fire" Style="{StaticResource DashActionButton}" Margin="0,0,10,8"
-                            Command="{Binding SetCategoryCommand}" CommandParameter="Fire" />
-                    <Button Content="Heat" Style="{StaticResource DashActionButton}" Margin="0,0,10,8"
-                            Command="{Binding SetCategoryCommand}" CommandParameter="Heat" />
-                    <Button Content="Fog" Style="{StaticResource DashActionButton}" Margin="0,0,10,8"
-                            Command="{Binding SetCategoryCommand}" CommandParameter="Fog" />
-                    <Button Content="Marine" Style="{StaticResource DashActionButton}" Margin="0,0,10,8"
-                            Command="{Binding SetCategoryCommand}" CommandParameter="Marine" />
-                    <Button Content="Other" Style="{StaticResource DashActionButton}" Margin="0,0,10,8"
-                            Command="{Binding SetCategoryCommand}" CommandParameter="Other" />
-                </WrapPanel>
-
-                <!-- Per-type toggles under lifecycle headings (WF style) -->
-                <ScrollViewer VerticalScrollBarVisibility="Auto"
-                              HorizontalScrollBarVisibility="Disabled"
-                              MaxHeight="360">
-                    <ScrollViewer.Resources>
-                        <Style TargetType="{x:Type ScrollBar}" BasedOn="{StaticResource ThinScrollBar}" />
-                    </ScrollViewer.Resources>
-
-                    <ItemsControl ItemsSource="{Binding LifecycleGroups}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <StackPanel Margin="0,0,0,14"
-                                            Visibility="{Binding HasVisibleEvents, Converter={StaticResource BoolToVis}}">
-
-                                    <!-- Lifecycle heading -->
-                                    <TextBlock Text="{Binding Title}"
-                                               Foreground="{DynamicResource Muted}"
-                                               FontWeight="SemiBold"
-                                               Margin="0,0,0,8" />
-
-                                    <!-- Card container -->
-                                    <Border Background="{DynamicResource Surface2}"
-                                            BorderBrush="{DynamicResource Border}"
-                                            BorderThickness="1"
-                                            CornerRadius="12"
-                                            Padding="12">
-
-                                        <ItemsControl ItemsSource="{Binding EventsView}">
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate>
-                                                    <!-- iOS-style toggle -->
-                                                    <CheckBox Style="{StaticResource WfSwitch}"
-                                                              Content="{Binding EventName}"
-                                                              IsChecked="{Binding IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-
-                                    </Border>
-                                </StackPanel>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </ScrollViewer>
+                <Button Content="Alert Filters…"
+                        Style="{StaticResource DashActionButton}"
+                        Command="{x:Static ApplicationCommands.Find}"
+                        Margin="0,0,0,12" />
 
                 <Separator Margin="0,0,0,12" />
-
-                <TextBlock Text="Severity"
-                           FontWeight="SemiBold"
-                           Margin="0,0,0,6" />
-
-                <WrapPanel>
-                    <CheckBox Content="Extreme" Foreground="{DynamicResource Text}"
-                              IsChecked="{Binding FilterSettings.ShowExtreme, UpdateSourceTrigger=PropertyChanged}"
-                              Margin="0,0,12,6" />
-                    <CheckBox Content="Severe" Foreground="{DynamicResource Text}"
-                              IsChecked="{Binding FilterSettings.ShowSevere, UpdateSourceTrigger=PropertyChanged}"
-                              Margin="0,0,12,6" />
-                    <CheckBox Content="Moderate" Foreground="{DynamicResource Text}"
-                              IsChecked="{Binding FilterSettings.ShowModerate, UpdateSourceTrigger=PropertyChanged}"
-                              Margin="0,0,12,6" />
-                    <CheckBox Content="Minor" Foreground="{DynamicResource Text}"
-                              IsChecked="{Binding FilterSettings.ShowMinor, UpdateSourceTrigger=PropertyChanged}"
-                              Margin="0,0,12,6" />
-                    <CheckBox Content="Unknown" Foreground="{DynamicResource Text}"
-                              IsChecked="{Binding FilterSettings.ShowUnknown, UpdateSourceTrigger=PropertyChanged}"
-                              Margin="0,0,12,6" />
-                </WrapPanel>
-
-                <Separator Margin="0,12,0,12" />
-
-                <UniformGrid Columns="2" Rows="3" Margin="0,8,0,0">
+<UniformGrid Columns="2" Rows="3" Margin="0,8,0,0">
 
                     <Button Content="Refresh"
                             Style="{StaticResource DashActionButton}"

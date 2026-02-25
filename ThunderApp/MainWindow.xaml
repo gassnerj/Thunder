@@ -182,8 +182,21 @@
             <Setter Property="Foreground" Value="{StaticResource Text}" />
         </Style>
     </Window.Resources>
+
+    <Window.CommandBindings>
+        <CommandBinding Command="ApplicationCommands.Find" Executed="OpenAlertFilters_Executed" />
+    </Window.CommandBindings>
+
+    <Window.InputBindings>
+        <KeyBinding Command="ApplicationCommands.Find" Key="F" Modifiers="Control" />
+    </Window.InputBindings>
+
     <DockPanel LastChildFill="True"> <!-- Menu --> <Menu DockPanel.Dock="Top" Padding="8,6">
-            <MenuItem Header="_File" /> <MenuItem Header="_View" /> <MenuItem Header="_Tools" />
+            <MenuItem Header="_File" />
+            <MenuItem Header="_View">
+                <MenuItem Header="Alert _Filters..." Command="ApplicationCommands.Find" InputGestureText="Ctrl+F" />
+            </MenuItem>
+            <MenuItem Header="_Tools" />
             <MenuItem Header="_Help" />
         </Menu> <!-- Status --> <StatusBar DockPanel.Dock="Bottom">
             <StatusBarItem>

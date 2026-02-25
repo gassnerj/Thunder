@@ -1,0 +1,313 @@
+<Window x:Class="ThunderApp.AlertFiltersWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Alert Filters"
+        Width="420" Height="820"
+        WindowStartupLocation="CenterOwner">
+
+    <!-- Local theme (same palette as MainWindow) so this window is self-contained -->
+    <Window.Resources>
+        <SolidColorBrush x:Key="AppBg" Color="#0B0E14" />
+        <SolidColorBrush x:Key="Surface" Color="#111827" />
+        <SolidColorBrush x:Key="Surface2" Color="#0F172A" />
+        <SolidColorBrush x:Key="Border" Color="#253047" />
+        <SolidColorBrush x:Key="Text" Color="#E5E7EB" />
+        <SolidColorBrush x:Key="Muted" Color="#AAB2C5" />
+        <SolidColorBrush x:Key="Accent" Color="#4F8BFF" />
+        <SolidColorBrush x:Key="Accent2" Color="#2B5BFF" />
+
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+
+        <Style TargetType="Window">
+            <Setter Property="Background" Value="{StaticResource AppBg}" />
+            <Setter Property="TextElement.Foreground" Value="{StaticResource Text}" />
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="13" />
+        </Style>
+
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="{StaticResource Surface2}" />
+            <Setter Property="Foreground" Value="{StaticResource Text}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Border}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="10" />
+            <Setter Property="CaretBrush" Value="{StaticResource Text}" />
+        </Style>
+
+        <Style TargetType="Button">
+            <Setter Property="Foreground" Value="{StaticResource Text}" />
+            <Setter Property="Background" Value="{StaticResource Surface2}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Border}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="12,7" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="10">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#16233A" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#0D1526" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Background" Value="{StaticResource Accent2}" />
+            <Setter Property="BorderBrush" Value="#2B5BFF" />
+        </Style>
+
+        <Style x:Key="Card" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource Surface}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Border}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Padding" Value="14" />
+        </Style>
+
+        <Style x:Key="DashActionButton" TargetType="Button">
+            <Setter Property="Height" Value="38" />
+            <Setter Property="MinWidth" Value="120" />
+            <Setter Property="Padding" Value="14,0" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource Text}" />
+            <Setter Property="Background" Value="{StaticResource Surface2}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Border}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+
+        <Style x:Key="ThinScrollBar" TargetType="{x:Type ScrollBar}">
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Style.Triggers>
+                <Trigger Property="Orientation" Value="Vertical">
+                    <Setter Property="Width" Value="10" />
+                    <Setter Property="Background" Value="Transparent" />
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="{x:Type ScrollBar}">
+                                <Grid Margin="2" Background="Transparent">
+                                    <Track x:Name="PART_Track" IsDirectionReversed="True">
+                                        <Track.DecreaseRepeatButton>
+                                            <RepeatButton Command="ScrollBar.LineUpCommand" Focusable="False" IsTabStop="False" Opacity="0" />
+                                        </Track.DecreaseRepeatButton>
+                                        <Track.Thumb>
+                                            <Thumb Focusable="False">
+                                                <Thumb.Template>
+                                                    <ControlTemplate TargetType="Thumb">
+                                                        <Border CornerRadius="6" Background="#445066" />
+                                                    </ControlTemplate>
+                                                </Thumb.Template>
+                                            </Thumb>
+                                        </Track.Thumb>
+                                        <Track.IncreaseRepeatButton>
+                                            <RepeatButton Command="ScrollBar.LineDownCommand" Focusable="False" IsTabStop="False" Opacity="0" />
+                                        </Track.IncreaseRepeatButton>
+                                    </Track>
+                                </Grid>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Trigger>
+                <Trigger Property="Orientation" Value="Horizontal">
+                    <Setter Property="Height" Value="0" />
+                    <Setter Property="Opacity" Value="0" />
+                    <Setter Property="IsHitTestVisible" Value="False" />
+                    <Setter Property="Focusable" Value="False" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="WfSwitch" TargetType="CheckBox">
+            <Setter Property="Foreground" Value="{StaticResource Text}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="CheckBox">
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <ContentPresenter VerticalAlignment="Center" />
+                            <Border x:Name="Track" Grid.Column="1" Width="44" Height="24" CornerRadius="12"
+                                    Background="#3A4355" Margin="10,0,0,0">
+                                <Ellipse x:Name="Knob" Width="18" Height="18" Fill="White"
+                                         HorizontalAlignment="Left" Margin="3,0,0,0" VerticalAlignment="Center" />
+                            </Border>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Track" Property="Background" Value="{StaticResource Accent2}" />
+                                <Setter TargetName="Knob" Property="HorizontalAlignment" Value="Right" />
+                                <Setter TargetName="Knob" Property="Margin" Value="0,0,3,0" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.55" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <DockPanel LastChildFill="True">
+
+        <!-- Bottom pinned buttons (so filters never push them off-screen) -->
+        <Border DockPanel.Dock="Bottom" Background="{StaticResource AppBg}" Padding="14">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="10" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0" Foreground="{StaticResource Muted}" VerticalAlignment="Center"
+                           Text="Ctrl+F opens this window. Esc closes." />
+
+                <Button Grid.Column="1" Style="{StaticResource PrimaryButton}" Width="120"
+                        Content="Save" Command="{Binding SaveFiltersCommand}" />
+                <Button Grid.Column="3" Width="120" Content="Close" Click="Close_Click" />
+            </Grid>
+        </Border>
+
+        <!-- Scrollable content -->
+        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <ScrollViewer.Resources>
+                <Style TargetType="{x:Type ScrollBar}" BasedOn="{StaticResource ThinScrollBar}" />
+            </ScrollViewer.Resources>
+
+            <Border Style="{StaticResource Card}" Margin="14">
+                <StackPanel>
+
+                    <TextBlock FontSize="18" FontWeight="SemiBold" Text="Alert Filters" Margin="0,0,0,10" />
+
+                    <CheckBox Content="Use GPS Location"
+                              Foreground="{StaticResource Text}"
+                              IsChecked="{Binding FilterSettings.UseNearMe}"
+                              Margin="0,0,0,10" />
+
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition />
+                            <ColumnDefinition Width="10" />
+                            <ColumnDefinition />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBox Grid.Column="0" ToolTip="Latitude"
+                                 Text="{Binding FilterSettings.ManualLat, UpdateSourceTrigger=PropertyChanged}" />
+
+                        <TextBox Grid.Column="2" ToolTip="Longitude"
+                                 Text="{Binding FilterSettings.ManualLon, UpdateSourceTrigger=PropertyChanged}" />
+                    </Grid>
+
+                    <Separator Margin="0,12,0,12" />
+
+                    <Grid Margin="0,0,0,6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="10" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Grid.Column="0" Text="Alert Types" FontWeight="SemiBold" VerticalAlignment="Center" />
+
+                        <Button Grid.Column="1" Content="All On" Padding="10,6"
+                                Command="{Binding EnableAllAlertTypesCommand}" />
+                        <Button Grid.Column="3" Content="All Off" Padding="10,6"
+                                Command="{Binding DisableAllAlertTypesCommand}" />
+                    </Grid>
+
+                    <!-- Category chips ONLY control which toggles are visible. They do NOT hide alerts. -->
+                    <WrapPanel Margin="0,0,0,10">
+                        <Button Content="Severe"    Style="{StaticResource DashActionButton}" Margin="0,0,10,8"
+                                Command="{Binding SetCategoryCommand}" CommandParameter="Severe" />
+                        <Button Content="Tropical"  Style="{StaticResource DashActionButton}" Margin="0,0,10,8"
+                                Command="{Binding SetCategoryCommand}" CommandParameter="Tropical" />
+                        <Button Content="Winter"    Style="{StaticResource DashActionButton}" Margin="0,0,10,8"
+                                Command="{Binding SetCategoryCommand}" CommandParameter="Winter" />
+                        <Button Content="Hydrology" Style="{StaticResource DashActionButton}" Margin="0,0,10,8"
+                                Command="{Binding SetCategoryCommand}" CommandParameter="Hydrology" />
+                        <Button Content="Wind"      Style="{StaticResource DashActionButton}" Margin="0,0,10,8"
+                                Command="{Binding SetCategoryCommand}" CommandParameter="Wind" />
+                        <Button Content="Fire"      Style="{StaticResource DashActionButton}" Margin="0,0,10,8"
+                                Command="{Binding SetCategoryCommand}" CommandParameter="Fire" />
+                        <Button Content="Heat"      Style="{StaticResource DashActionButton}" Margin="0,0,10,8"
+                                Command="{Binding SetCategoryCommand}" CommandParameter="Heat" />
+                        <Button Content="Fog"       Style="{StaticResource DashActionButton}" Margin="0,0,10,8"
+                                Command="{Binding SetCategoryCommand}" CommandParameter="Fog" />
+                        <Button Content="Marine"    Style="{StaticResource DashActionButton}" Margin="0,0,10,8"
+                                Command="{Binding SetCategoryCommand}" CommandParameter="Marine" />
+                        <Button Content="Other"     Style="{StaticResource DashActionButton}" Margin="0,0,10,8"
+                                Command="{Binding SetCategoryCommand}" CommandParameter="Other" />
+                    </WrapPanel>
+
+                    <ItemsControl ItemsSource="{Binding LifecycleGroups}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="0,0,0,14"
+                                            Visibility="{Binding HasVisibleEvents, Converter={StaticResource BoolToVis}}">
+
+                                    <TextBlock Text="{Binding Title}" Foreground="{StaticResource Muted}"
+                                               FontWeight="SemiBold" Margin="0,0,0,8" />
+
+                                    <Border Background="{StaticResource Surface2}" BorderBrush="{StaticResource Border}"
+                                            BorderThickness="1" CornerRadius="12" Padding="12">
+
+                                        <ItemsControl ItemsSource="{Binding EventsView}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <CheckBox Style="{StaticResource WfSwitch}"
+                                                              Content="{Binding EventName}"
+                                                              IsChecked="{Binding IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </Border>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <Separator Margin="0,0,0,12" />
+
+                    <TextBlock Text="Severity" FontWeight="SemiBold" Margin="0,0,0,6" />
+
+                    <WrapPanel>
+                        <CheckBox Content="Extreme" Foreground="{StaticResource Text}"
+                                  IsChecked="{Binding FilterSettings.ShowExtreme, UpdateSourceTrigger=PropertyChanged}"
+                                  Margin="0,0,12,6" />
+                        <CheckBox Content="Severe" Foreground="{StaticResource Text}"
+                                  IsChecked="{Binding FilterSettings.ShowSevere, UpdateSourceTrigger=PropertyChanged}"
+                                  Margin="0,0,12,6" />
+                        <CheckBox Content="Moderate" Foreground="{StaticResource Text}"
+                                  IsChecked="{Binding FilterSettings.ShowModerate, UpdateSourceTrigger=PropertyChanged}"
+                                  Margin="0,0,12,6" />
+                        <CheckBox Content="Minor" Foreground="{StaticResource Text}"
+                                  IsChecked="{Binding FilterSettings.ShowMinor, UpdateSourceTrigger=PropertyChanged}"
+                                  Margin="0,0,12,6" />
+                        <CheckBox Content="Unknown" Foreground="{StaticResource Text}"
+                                  IsChecked="{Binding FilterSettings.ShowUnknown, UpdateSourceTrigger=PropertyChanged}"
+                                  Margin="0,0,12,6" />
+                    </WrapPanel>
+
+                </StackPanel>
+            </Border>
+        </ScrollViewer>
+    </DockPanel>
+</Window>

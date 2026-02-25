@@ -27,6 +27,7 @@ namespace ThunderApp
         private bool _didInitialMapCenter = false;
         private CancellationTokenSource? _appCts;
         private ThunderApp.ViewModels.DashboardViewModel? _dashboardVm;
+        private AlertFiltersWindow? _alertFiltersWindow;
         private NwsAlertsService? _alertsService;
         
         private GPS GPSLocation { get; set; } = null!;
@@ -308,6 +309,34 @@ namespace ThunderApp
         private void MenuItem_About_Click(object sender, RoutedEventArgs e)
         {
             throw new NotImplementedException();
+        }
+
+        private void OpenAlertFilters_Executed(object sender, System.Windows.Input.ExecutedRoutedEventArgs e)
+        {
+            if (_dashboardVm == null)
+                return;
+
+            // Single instance: if it's already open, just bring it forward.
+            if (_alertFiltersWindow != null)
+            {
+                if (_alertFiltersWindow.IsVisible)
+                {
+                    _alertFiltersWindow.Activate();
+                    return;
+                }
+
+                _alertFiltersWindow = null;
+            }
+
+            var w = new AlertFiltersWindow
+            {
+                Owner = this,
+                DataContext = _dashboardVm
+            };
+
+            w.Closed += (_, _) => _alertFiltersWindow = null;
+            _alertFiltersWindow = w;
+            w.Show();
         }
 
 

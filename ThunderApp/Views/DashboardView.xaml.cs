@@ -175,8 +175,13 @@ namespace ThunderApp.Views
 
             if (!_lastLat.HasValue || !_lastLon.HasValue)
             {
-                if (double.TryParse(ManualLatTextBox.Text?.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out double mLat) &&
-                    double.TryParse(ManualLonTextBox.Text?.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out double mLon))
+                // Filters live in a separate window now, so don't depend on hidden textboxes.
+                // Use the VM settings as the source of truth.
+                var fs = _vm.FilterSettings;
+                double mLat = fs.ManualLat;
+                double mLon = fs.ManualLon;
+
+                if (!double.IsNaN(mLat) && !double.IsNaN(mLon) && mLat != 0 && mLon != 0)
                 {
                     _lastLat = mLat;
                     _lastLon = mLon;
