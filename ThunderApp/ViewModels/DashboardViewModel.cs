@@ -12,6 +12,7 @@ using CommunityToolkit.Mvvm.Input;
 using GeoJsonWeather;
 using ThunderApp.Models;
 using ThunderApp.Services;
+using ThunderApp.Views;
 
 namespace ThunderApp.ViewModels;
 
@@ -22,6 +23,7 @@ public partial class DashboardViewModel : ObservableObject
     private readonly IDiskLogService _log;
     private readonly ISettingsService<AlertFilterSettings> _settingsSvc;
     private readonly NwsZoneGeometryService _zones;
+    private readonly SpcOutlookTextService _spcText;
 
     private ObservableCollection<NwsAlert> _alertsCollection = [];
     public ObservableCollection<NwsAlert> Alerts
@@ -56,6 +58,11 @@ public partial class DashboardViewModel : ObservableObject
     // Latest known location (GPS or manual). Used for radius filtering + fast refresh.
     [ObservableProperty] private GeoPoint? currentLocation;
 
+    // SPC outlook text (SWO) for Day 1/2/3.
+    [ObservableProperty] private string spcDay1Text = "";
+    [ObservableProperty] private string spcDay2Text = "";
+    [ObservableProperty] private string spcDay3Text = "";
+
     // WF-style groups (bound in XAML)
     public ObservableCollection<LifecycleGroupViewModel> LifecycleGroups { get; } = [];
 
@@ -89,13 +96,15 @@ public partial class DashboardViewModel : ObservableObject
         IGpsService gps,
         IDiskLogService log,
         ISettingsService<AlertFilterSettings> settingsSvc,
-        NwsZoneGeometryService zones)
+        NwsZoneGeometryService zones,
+        SpcOutlookTextService spcText)
     {
         _alerts = alerts;
         _gps = gps;
         _log = log;
         _settingsSvc = settingsSvc;
         _zones = zones;
+        _spcText = spcText;
 
         RebuildAlertsView();
 
@@ -170,6 +179,10 @@ public partial class DashboardViewModel : ObservableObject
             {
                 _suppressManualCoordsSync = false;
             }
+
+            // Manual coordinate changes should immediately re-apply filters and repaint polygons,
+            // without requiring a full network refresh or toggle flip.
+            RefreshAlertsView();
         }
     }
 
@@ -782,6 +795,43 @@ public partial class DashboardViewModel : ObservableObject
         _settingsSvc.Save(FilterSettings);
         _log.Log("Saved alert filters/settings.");
         StatusText = "Saved.";
+    }
+
+    [RelayCommand]
+    internal async Task RefreshSpcTextAsync()
+    {
+        try
+        {
+            StatusText = "Fetching SPC outlook text...";
+
+            string? d1 = await _spcText.GetConvectiveOutlookTextAsync(1).ConfigureAwait(false);
+            string? d2 = await _spcText.GetConvectiveOutlookTextAsync(2).ConfigureAwait(false);
+            string? d3 = await _spcText.GetConvectiveOutlookTextAsync(3).ConfigureAwait(false);
+
+            // Back to UI thread for property updates.
+            if (System.Windows.Application.Current?.Dispatcher?.CheckAccess() == false)
+            {
+                System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                {
+                    SpcDay1Text = d1 ?? "(No Day 1 text returned.)";
+                    SpcDay2Text = d2 ?? "(No Day 2 text returned.)";
+                    SpcDay3Text = d3 ?? "(No Day 3 text returned.)";
+                    StatusText = "SPC text updated.";
+                });
+            }
+            else
+            {
+                SpcDay1Text = d1 ?? "(No Day 1 text returned.)";
+                SpcDay2Text = d2 ?? "(No Day 2 text returned.)";
+                SpcDay3Text = d3 ?? "(No Day 3 text returned.)";
+                StatusText = "SPC text updated.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.Log("SPC text fetch failed: " + ex);
+            StatusText = "SPC text fetch failed.";
+        }
     }
 
     [RelayCommand]

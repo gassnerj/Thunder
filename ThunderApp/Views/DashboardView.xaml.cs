@@ -42,6 +42,8 @@ namespace ThunderApp.Views
         
         private int _alertsUpdateVersion;
 
+        private SpcOutlookTextWindow? _spcTextWindow;
+
         public DashboardView()
         {
             InitializeComponent();
@@ -50,6 +52,36 @@ namespace ThunderApp.Views
 
             Loaded += DashboardView_Loaded;
             DataContextChanged += DashboardView_DataContextChanged;
+        }
+
+        private async void SpcText_OnClick(object sender, RoutedEventArgs e)
+        {
+            if (_vm == null) return;
+
+            // Fetch latest text on demand, then show.
+            try
+            {
+                await _vm.RefreshSpcTextAsync();
+            }
+            catch
+            {
+                // VM sets status/logs.
+            }
+
+            if (_spcTextWindow == null || !_spcTextWindow.IsVisible)
+            {
+                _spcTextWindow = new SpcOutlookTextWindow
+                {
+                    Owner = Window.GetWindow(this),
+                    DataContext = _vm
+                };
+                _spcTextWindow.Closed += (_, _) => _spcTextWindow = null;
+                _spcTextWindow.Show();
+            }
+            else
+            {
+                _spcTextWindow.Activate();
+            }
         }
 
         private static void EnsureNwsHeaders()
@@ -107,6 +139,11 @@ namespace ThunderApp.Views
                     {
                         ApplySavedAlertsMapSplit();
                     }
+
+                    if (args.PropertyName is nameof(AlertFilterSettings.ShowSeverityOutline))
+                    {
+                        _ = UpdateSeverityOutlineOnMapAsync();
+                    }
                 };
 
                 _vm.FilterSettings.PropertyChanged += _filterChangedHandler;
@@ -114,6 +151,15 @@ namespace ThunderApp.Views
                 // Apply split once we have settings.
                 ApplySavedAlertsMapSplit();
             }
+        }
+
+        private async Task UpdateSeverityOutlineOnMapAsync()
+        {
+            if (!_mapReady || MapView?.CoreWebView2 == null) return;
+            _vm ??= DataContext as DashboardViewModel;
+            if (_vm?.FilterSettings == null) return;
+
+            await MapView.CoreWebView2.ExecuteScriptAsync($"setSeverityOutline({(_vm.FilterSettings.ShowSeverityOutline ? "true" : "false")});");
         }
 
         private void ApplySavedAlertsMapSplit()
@@ -317,6 +363,7 @@ namespace ThunderApp.Views
                 _ = QueueAlertPolygonUpdateAsync();
                 _ = UpdateRangeCircleOnMapAsync();
                 _ = UpdateSpcOverlaysOnMapAsync();
+                _ = UpdateSeverityOutlineOnMapAsync();
             };
 
             MapView.Source = new Uri("https://app/map.html");

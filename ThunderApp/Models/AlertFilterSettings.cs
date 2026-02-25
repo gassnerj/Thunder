@@ -39,6 +39,12 @@ public partial class AlertFilterSettings : ObservableObject
     [ObservableProperty] private bool showSpcDay2 = false;
     [ObservableProperty] private bool showSpcDay3 = false;
 
+    // -----------------------------
+    // Map styling
+    // -----------------------------
+    // If true, outlines encode the NWS "severity" field (Extreme/Severe/etc)
+    [ObservableProperty] private bool showSeverityOutline = true;
+
     // If an event is in this set => HIDDEN
     // (we store "disabled" because it's easier to persist deltas)
     [ObservableProperty]

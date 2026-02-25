@@ -99,7 +99,9 @@ namespace ThunderApp
             var cache = new SimpleDiskCache(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "cache"));
             var zones = new NwsZoneGeometryService(http, cache);
 
-            _dashboardVm = new DashboardViewModel(alerts, gps, log, settings, zones);
+            var spcText = new SpcOutlookTextService(http, cache);
+
+            _dashboardVm = new DashboardViewModel(alerts, gps, log, settings, zones, spcText);
             Dashboard.DataContext = _dashboardVm;
 
             _ = InitializeAsync(_appCts.Token);

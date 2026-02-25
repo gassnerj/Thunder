@@ -240,14 +240,27 @@
         const p = feature?.properties || {};
         const label = (p.LABEL || p.label || p.RISK || p.risk || "").toString().toUpperCase();
 
-        // Keep it simple: stronger for higher categories.
-        // (We intentionally avoid hardcoding a full palette here.)
+        // SPC categorical palette (approx standard):
+        // TSTM (General Thunder): light green
+        // MRGL: dark green
+        // SLGT: yellow
+        // ENH: orange
+        // MDT: red
+        // HIGH: magenta
+        let color = "#9AE6B4"; // TSTM default
+
+        if (label.includes("MRGL") || label.includes("MARGINAL")) color = "#2F855A";
+        if (label.includes("SLGT") || label.includes("SLIGHT"))   color = "#F6E05E";
+        if (label.includes("ENH")  || label.includes("ENHANCED")) color = "#ED8936";
+        if (label.includes("MDT")  || label.includes("MODERATE")) color = "#E53E3E";
+        if (label.includes("HIGH"))                               color = "#D53F8C";
+
         let weight = 2;
-        let fillOpacity = 0.10;
+        let fillOpacity = 0.12;
         if (label.includes("MDT") || label.includes("MODERATE")) fillOpacity = 0.16;
         if (label.includes("HIGH")) fillOpacity = 0.20;
 
-        return { weight, opacity: 0.9, fillOpacity };
+        return { color, fillColor: color, weight, opacity: 0.95, fillOpacity };
     }
 
     async function ensureSpcLayer(dayKey) {
@@ -394,25 +407,95 @@
     // =======================
     let didFitAlertsOnce = false;
 
+    // If true, the polygon outline encodes the NWS "severity" field.
+    let severityOutlineEnabled = true;
+
+    window.setSeverityOutline = (enabled) => {
+        severityOutlineEnabled = !!enabled;
+        // Restyle without rebuilding data.
+        try { alertLayer.setStyle(alertStyle); } catch {}
+    };
+
+    // Official-ish event palette (WWA) for common hazards.
+    function eventColor(eventName) {
+        const e = (eventName || "").toString().toLowerCase();
+
+        // Core chase-critical
+        if (e.includes("tornado warning")) return "#FF0000";
+        if (e.includes("severe thunderstorm warning")) return "#FFA500";
+        if (e.includes("flash flood warning")) return "#8B0000";
+        if (e.includes("extreme wind warning")) return "#FF8C00";
+
+        // Watches
+        if (e.includes("tornado watch")) return "#FFCC00";
+        if (e.includes("severe thunderstorm watch")) return "#FFCC00";
+
+        // Flood products
+        if (e.includes("flood warning")) return "#00A651";
+        if (e.includes("flood advisory")) return "#00C17D";
+        if (e.includes("flood watch")) return "#2E8B57";
+
+        // Fire
+        if (e.includes("red flag warning")) return "#FF1493";
+        if (e.includes("fire weather watch")) return "#FF69B4";
+
+        // Winter (basic)
+        if (e.includes("blizzard warning")) return "#FF69B4";
+        if (e.includes("winter storm warning")) return "#FF69B4";
+        if (e.includes("ice storm warning")) return "#8A2BE2";
+
+        // Fallback
+        return "#6B7280"; // slate
+    }
+
+    function severityStroke(severity) {
+        const sev = (severity || "unknown").toString().toLowerCase();
+
+        // Default outline
+        let weight = 2;
+        let dashArray = null;
+        let opacity = 1.0;
+
+        if (!severityOutlineEnabled) {
+            return { weight: 2, dashArray: null, opacity: 1.0 };
+        }
+
+        if (sev === "extreme") {
+            weight = 5;
+            opacity = 1.0;
+        } else if (sev === "severe") {
+            weight = 4;
+        } else if (sev === "moderate") {
+            weight = 3;
+        } else if (sev === "minor") {
+            weight = 2;
+            opacity = 0.95;
+        } else {
+            weight = 2;
+            dashArray = "6,6";
+            opacity = 0.9;
+        }
+
+        return { weight, dashArray, opacity };
+    }
+
+    function alertStyle(feature) {
+        const p = feature.properties || {};
+        const base = eventColor(p.event || p.Event || "");
+        const sev = severityStroke(p.severity);
+
+        return {
+            color: base,
+            fillColor: base,
+            weight: sev.weight,
+            opacity: sev.opacity,
+            dashArray: sev.dashArray,
+            fillOpacity: 0.18
+        };
+    }
+
     const alertLayer = L.geoJSON([], {
-        style: (feature) => {
-            const p = feature.properties || {};
-            const sev = (p.severity || "unknown").toLowerCase();
-
-            let color = "#4F8BFF";
-            if (sev === "extreme") color = "#B026FF";
-            else if (sev === "severe") color = "#FF3B30";
-            else if (sev === "moderate") color = "#FF9500";
-            else if (sev === "minor") color = "#FFD60A";
-
-            return {
-                color,
-                fillColor: color,
-                weight: 2,
-                opacity: 1,
-                fillOpacity: 0.18
-            };
-        },
+        style: alertStyle,
         onEachFeature: (feature, layer) => {
             const p = feature.properties || {};
             layer.bindPopup(`<b>${p.event || "Alert"}</b><br>${p.headline || ""}`);

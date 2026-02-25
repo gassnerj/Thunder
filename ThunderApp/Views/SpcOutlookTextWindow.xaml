@@ -1,0 +1,45 @@
+<Window x:Class="ThunderApp.Views.SpcOutlookTextWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="SPC Outlook Text" Width="980" Height="720"
+        WindowStartupLocation="CenterOwner">
+
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="12" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <DockPanel Grid.Row="0">
+            <TextBlock Text="SPC Convective Outlook Text (SWO)"
+                       FontWeight="SemiBold"
+                       FontSize="16"
+                       VerticalAlignment="Center" />
+
+            <Button DockPanel.Dock="Right"
+                    Content="Refresh"
+                    Padding="14,7"
+                    Margin="12,0,0,0"
+                    Command="{Binding RefreshSpcTextCommand}" />
+        </DockPanel>
+
+        <TabControl Grid.Row="2">
+            <TabItem Header="Day 1">
+                <TextBox Text="{Binding SpcDay1Text}" IsReadOnly="True"
+                         VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                         TextWrapping="NoWrap" FontFamily="Consolas" />
+            </TabItem>
+            <TabItem Header="Day 2">
+                <TextBox Text="{Binding SpcDay2Text}" IsReadOnly="True"
+                         VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                         TextWrapping="NoWrap" FontFamily="Consolas" />
+            </TabItem>
+            <TabItem Header="Day 3">
+                <TextBox Text="{Binding SpcDay3Text}" IsReadOnly="True"
+                         VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                         TextWrapping="NoWrap" FontFamily="Consolas" />
+            </TabItem>
+        </TabControl>
+    </Grid>
+</Window>

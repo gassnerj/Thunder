@@ -6,6 +6,7 @@
 
     <UserControl.Resources>
         <conv:SeverityToBrushConverter x:Key="SeverityToBrush" />
+        <conv:EventToBrushConverter x:Key="EventToBrush" />
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
 
         <Style x:Key="WfSwitch" TargetType="CheckBox">
@@ -472,7 +473,17 @@
                 <CheckBox Content="SPC Day 3 Outlook"
                           Style="{StaticResource WfSwitch}"
                           IsChecked="{Binding FilterSettings.ShowSpcDay3}"
-                          Margin="0,0,0,12" />
+                          Margin="0,0,0,8" />
+
+                <CheckBox Content="Severity outline"
+                          Style="{StaticResource WfSwitch}"
+                          IsChecked="{Binding FilterSettings.ShowSeverityOutline}"
+                          Margin="0,0,0,8" />
+
+                <Button Content="SPC Text…"
+                        Style="{StaticResource DashActionButton}"
+                        Click="SpcText_OnClick"
+                        Margin="0,0,0,12" />
 
                 <!-- Keep command buttons visible; filter UI moved to separate window -->
                 <UniformGrid Columns="2" Margin="0,8,0,0">
@@ -623,7 +634,7 @@
 
                                             <!-- Accent bar -->
                                             <Border Grid.Column="0"
-                                                    Background="{DynamicResource Accent2}"
+                                                    Background="{Binding Event, Converter={StaticResource EventToBrush}}"
                                                     CornerRadius="10,0,0,10" />
 
                                             <Grid Grid.Column="1" Margin="12">
