@@ -18,6 +18,10 @@ public partial class AlertFilterSettings : ObservableObject
     [ObservableProperty] private double manualLat = 0;
     [ObservableProperty] private double manualLon = 0;
 
+    // radius filter (miles)
+    [ObservableProperty] private bool useRadiusFilter = false;
+    [ObservableProperty] private double radiusMiles = 50;
+
     // WeatherFront-style category chips
     [ObservableProperty] private AlertCategory selectedCategory = AlertCategory.Severe;
 

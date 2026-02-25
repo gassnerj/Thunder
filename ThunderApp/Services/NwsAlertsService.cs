@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -27,6 +28,26 @@ public sealed class NwsAlertsService : INwsAlertsService
     public async Task<IReadOnlyList<NwsAlert>> GetActiveAlertsForPointAsync(GeoPoint point, CancellationToken ct)
     {
         await _fc.FetchData(_url.GetByLatLon(point.Lat, point.Lon));
+        return Map(_fc.Alerts);
+    }
+
+    public async Task<IReadOnlyList<NwsAlert>> GetActiveAlertsByEventsAsync(IEnumerable<string> eventNames, CancellationToken ct)
+    {
+        // NWS supports multiple event filters by repeating the query parameter.
+        // Example: /alerts/active?event=Tornado%20Warning&event=Severe%20Thunderstorm%20Warning
+        var ev = (eventNames ?? Enumerable.Empty<string>())
+            .Select(s => (s ?? "").Trim())
+            .Where(s => !string.IsNullOrWhiteSpace(s))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (ev.Count == 0)
+            return Array.Empty<NwsAlert>();
+
+        var qs = string.Join("&", ev.Select(e => "event=" + System.Uri.EscapeDataString(e)));
+        var url = $"https://api.weather.gov/alerts/active?{qs}";
+
+        await _fc.FetchData(url);
         return Map(_fc.Alerts);
     }
 

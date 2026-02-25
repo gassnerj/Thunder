@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -92,7 +94,12 @@ namespace ThunderApp
             var settings = new JsonSettingsService<AlertFilterSettings>("alertFilters.json"); 
             // <-- change to your actual class name
 
-            _dashboardVm = new DashboardViewModel(alerts, gps, log, settings);
+            // Zone geometry resolver (used for range filtering when alerts only provide affected zone URLs)
+            var http = new HttpClient();
+            var cache = new SimpleDiskCache(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "cache"));
+            var zones = new NwsZoneGeometryService(http, cache);
+
+            _dashboardVm = new DashboardViewModel(alerts, gps, log, settings, zones);
             Dashboard.DataContext = _dashboardVm;
 
             _ = InitializeAsync(_appCts.Token);
@@ -204,19 +211,8 @@ namespace ThunderApp
                 await Dashboard.UpdateMapLocationAsync(NMEA.Latitude, NMEA.Longitude, zoom: 12, addTrail: true, forceCenter: false);
             }
 
-            // This is where alerts refresh happens (via your VM)
-            if (_dashboardVm != null)
-                _ = Dispatcher.InvokeAsync(async () =>
-                {
-                    try
-                    {
-                        await _dashboardVm.RefreshAsync();
-                    }
-                    catch (Exception ex)
-                    {
-                        MessageBox.Show(ex.ToString());
-                    }
-                });
+            // Feed the VM the latest GPS location; the VM owns refresh scheduling.
+            _dashboardVm?.SetCurrentLocation(NMEA.Latitude, NMEA.Longitude);
         }
 
         private async Task UpdateLocation(Vmix vmix)

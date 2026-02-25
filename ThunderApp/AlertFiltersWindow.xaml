@@ -197,7 +197,7 @@
                     <TextBlock FontSize="18" FontWeight="SemiBold" Text="Alert Filters" Margin="0,0,0,10" />
 
                     <CheckBox Content="Use GPS Location"
-                              Foreground="{StaticResource Text}"
+                              Style="{StaticResource WfSwitch}"
                               IsChecked="{Binding FilterSettings.UseNearMe}"
                               Margin="0,0,0,10" />
 
@@ -289,19 +289,19 @@
                     <TextBlock Text="Severity" FontWeight="SemiBold" Margin="0,0,0,6" />
 
                     <WrapPanel>
-                        <CheckBox Content="Extreme" Foreground="{StaticResource Text}"
+                        <CheckBox Style="{StaticResource WfSwitch}" Content="Extreme"
                                   IsChecked="{Binding FilterSettings.ShowExtreme, UpdateSourceTrigger=PropertyChanged}"
                                   Margin="0,0,12,6" />
-                        <CheckBox Content="Severe" Foreground="{StaticResource Text}"
+                        <CheckBox Style="{StaticResource WfSwitch}" Content="Severe"
                                   IsChecked="{Binding FilterSettings.ShowSevere, UpdateSourceTrigger=PropertyChanged}"
                                   Margin="0,0,12,6" />
-                        <CheckBox Content="Moderate" Foreground="{StaticResource Text}"
+                        <CheckBox Style="{StaticResource WfSwitch}" Content="Moderate"
                                   IsChecked="{Binding FilterSettings.ShowModerate, UpdateSourceTrigger=PropertyChanged}"
                                   Margin="0,0,12,6" />
-                        <CheckBox Content="Minor" Foreground="{StaticResource Text}"
+                        <CheckBox Style="{StaticResource WfSwitch}" Content="Minor"
                                   IsChecked="{Binding FilterSettings.ShowMinor, UpdateSourceTrigger=PropertyChanged}"
                                   Margin="0,0,12,6" />
-                        <CheckBox Content="Unknown" Foreground="{StaticResource Text}"
+                        <CheckBox Style="{StaticResource WfSwitch}" Content="Unknown"
                                   IsChecked="{Binding FilterSettings.ShowUnknown, UpdateSourceTrigger=PropertyChanged}"
                                   Margin="0,0,12,6" />
                     </WrapPanel>

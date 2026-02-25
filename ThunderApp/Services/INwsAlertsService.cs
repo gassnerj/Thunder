@@ -9,4 +9,5 @@ public interface INwsAlertsService
 {
     Task<IReadOnlyList<NwsAlert>> GetActiveAlertsAsync(CancellationToken ct);
     Task<IReadOnlyList<NwsAlert>> GetActiveAlertsForPointAsync(GeoPoint point, CancellationToken ct);
+    Task<IReadOnlyList<NwsAlert>> GetActiveAlertsByEventsAsync(IEnumerable<string> eventNames, CancellationToken ct);
 }

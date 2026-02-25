@@ -407,27 +407,42 @@
                            Margin="0,0,0,8" />
 
                 <CheckBox Content="Use GPS Location"
-                          Foreground="{DynamicResource Text}"
+                          Style="{StaticResource WfSwitch}"
                           IsChecked="{Binding FilterSettings.UseNearMe}"
                           Margin="0,0,0,10" />
 
+                <CheckBox Content="Limit alerts to radius"
+                          Style="{StaticResource WfSwitch}"
+                          IsChecked="{Binding FilterSettings.UseRadiusFilter}"
+                          Margin="0,0,0,8" />
+
                 <Grid Margin="0,0,0,12">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition />
+                        <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="10" />
-                        <ColumnDefinition />
+                        <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
 
-                    <TextBox x:Name="ManualLatTextBox"
-                             Grid.Column="0"
-                             ToolTip="Latitude"
-                             Text="{Binding FilterSettings.ManualLat, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBlock Grid.Column="0"
+                               Text="Radius (mi)"
+                               Foreground="{DynamicResource Muted}"
+                               VerticalAlignment="Center" />
 
-                    <TextBox x:Name="ManualLonTextBox"
-                             Grid.Column="2"
-                             ToolTip="Longitude"
-                             Text="{Binding FilterSettings.ManualLon, UpdateSourceTrigger=PropertyChanged}" />
+                    <ComboBox Grid.Column="2"
+                              SelectedValuePath="Content"
+                              SelectedValue="{Binding FilterSettings.RadiusMiles, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                        <ComboBoxItem Content="5" />
+                        <ComboBoxItem Content="10" />
+                        <ComboBoxItem Content="20" />
+                        <ComboBoxItem Content="50" />
+                        <ComboBoxItem Content="75" />
+                        <ComboBoxItem Content="100" />
+                    </ComboBox>
                 </Grid>
+
+                <TextBox Margin="0,0,0,12"
+                         ToolTip="Paste coordinates like: 35.13942856886735, -92.10533693471073"
+                         Text="{Binding ManualCoordsText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
 
                 <Button Content="Alert Filters…"
                         Style="{StaticResource DashActionButton}"
@@ -435,7 +450,9 @@
                         Margin="0,0,0,12" />
 
                 <Separator Margin="0,0,0,12" />
-<UniformGrid Columns="2" Rows="3" Margin="0,8,0,0">
+
+                <!-- Keep command buttons visible; filter UI moved to separate window -->
+                <UniformGrid Columns="2" Margin="0,8,0,0">
 
                     <Button Content="Refresh"
                             Style="{StaticResource DashActionButton}"
@@ -460,6 +477,11 @@
                             Click="ClearTrail_OnClick"
                             Margin="0,0,0,8" />
 
+                    <Button Content="Route"
+                            Style="{StaticResource DashActionButton}"
+                            Click="Route_OnClick"
+                            Margin="0,0,8,8" />
+
                     <Button Content="Clear Route"
                             Style="{StaticResource DashActionButton}"
                             Click="ClearRoute_OnClick"
@@ -482,6 +504,10 @@
                 <TextBlock Style="{StaticResource DashMuted}"
                            Text="{Binding StatusText}"
                            Margin="0,12,0,0" />
+
+                <TextBlock Style="{StaticResource DashMuted}"
+                           Text="{Binding RefreshInfo}"
+                           Margin="0,6,0,0" />
             </StackPanel>
         </Border>
 
@@ -742,6 +768,32 @@
             </Border>
 
         </Grid>
+
+        <!-- ===== In-app toast (new / entering-range critical warnings) ===== -->
+        <Border Grid.ColumnSpan="3"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Top"
+                Margin="0,14,14,0"
+                Background="#1A263B"
+                BorderBrush="{DynamicResource Border}"
+                BorderThickness="1"
+                CornerRadius="12"
+                Padding="14"
+                Width="420"
+                Visibility="{Binding ToastVisible, Converter={StaticResource BoolToVis}}">
+            <StackPanel>
+                <TextBlock Text="{Binding ToastTitle}"
+                           Foreground="{DynamicResource Text}"
+                           FontWeight="SemiBold"
+                           FontSize="14"
+                           TextTrimming="CharacterEllipsis" />
+                <TextBlock Text="{Binding ToastMessage}"
+                           Foreground="{DynamicResource Muted}"
+                           Margin="0,6,0,0"
+                           TextWrapping="Wrap"
+                           MaxHeight="72" />
+            </StackPanel>
+        </Border>
 
     </Grid>
 </UserControl>

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -34,6 +35,8 @@ namespace ThunderApp.Views
         private const double MinTrailMoveMeters = 50;
 
         private DashboardViewModel? _vm;
+
+        private PropertyChangedEventHandler? _filterChangedHandler;
         
         private int _alertsUpdateVersion;
 
@@ -67,6 +70,9 @@ namespace ThunderApp.Views
             if (_vm != null)
                 _vm.AlertsChanged -= Vm_AlertsChanged;
 
+            if (_vm?.FilterSettings != null && _filterChangedHandler != null)
+                _vm.FilterSettings.PropertyChanged -= _filterChangedHandler;
+
             _vm = DataContext as DashboardViewModel;
 
             if (_vm?.Alerts is INotifyCollectionChanged obs)
@@ -74,6 +80,23 @@ namespace ThunderApp.Views
 
             if (_vm != null)
                 _vm.AlertsChanged += Vm_AlertsChanged;
+
+            if (_vm?.FilterSettings != null)
+            {
+                _filterChangedHandler = (_, args) =>
+                {
+                    if (args.PropertyName is nameof(AlertFilterSettings.UseRadiusFilter)
+                        or nameof(AlertFilterSettings.RadiusMiles)
+                        or nameof(AlertFilterSettings.UseNearMe)
+                        or nameof(AlertFilterSettings.ManualLat)
+                        or nameof(AlertFilterSettings.ManualLon))
+                    {
+                        _ = UpdateRangeCircleOnMapAsync();
+                    }
+                };
+
+                _vm.FilterSettings.PropertyChanged += _filterChangedHandler;
+            }
         }
 
         private void Vm_AlertsChanged(object? sender, EventArgs e)
@@ -151,7 +174,9 @@ namespace ThunderApp.Views
                     string? id = root.GetProperty("id").GetString();
                     if (string.IsNullOrWhiteSpace(id)) return;
 
-                    await Dispatcher.InvokeAsync(async () => { await RouteToAlertAsync(id); });
+                    // Clicking a polygon should only select the corresponding alert.
+                    // Routing is initiated explicitly via the "Route" button.
+                    await Dispatcher.InvokeAsync(() => SelectAlertById(id));
                     return;
                 }
                 catch
@@ -166,6 +191,25 @@ namespace ThunderApp.Views
             };
 
             MapView.Source = new Uri("https://app/map.html");
+        }
+
+        private void SelectAlertById(string alertId)
+        {
+            _vm ??= DataContext as DashboardViewModel;
+            if (_vm == null) return;
+
+            var match = _vm.Alerts.FirstOrDefault(a =>
+                string.Equals(a.Id, alertId, StringComparison.OrdinalIgnoreCase));
+
+            if (match != null)
+                _vm.SelectedAlert = match;
+        }
+
+        private async void Route_OnClick(object sender, RoutedEventArgs e)
+        {
+            _vm ??= DataContext as DashboardViewModel;
+            if (_vm?.SelectedAlert?.Id == null) return;
+            await RouteToAlertAsync(_vm.SelectedAlert.Id);
         }
 
         private async Task RouteToAlertAsync(string alertId)
@@ -366,14 +410,13 @@ namespace ThunderApp.Views
         {
             if (!_mapReady) return;
 
-            string? latText = ManualLatTextBox.Text?.Trim();
-            string? lonText = ManualLonTextBox.Text?.Trim();
-
-            if (double.TryParse(latText, NumberStyles.Float, CultureInfo.InvariantCulture, out double lat) &&
-                double.TryParse(lonText, NumberStyles.Float, CultureInfo.InvariantCulture, out double lon))
+            // Manual coordinates are MVVM-bound (single textbox) and parsed by the ViewModel.
+            // So here we simply use the ViewModel's current location.
+            if (DataContext is ThunderApp.ViewModels.DashboardViewModel vm && vm.CurrentLocation is ThunderApp.Models.GeoPoint p)
             {
                 FollowToggle.IsChecked = true;
-                await UpdateMapLocationAsync(lat, lon, DefaultZoom, addTrail: true, forceCenter: true);
+                vm.SetCurrentLocation(p.Lat, p.Lon); // also wakes fast refresh loop
+                await UpdateMapLocationAsync(p.Lat, p.Lon, DefaultZoom, addTrail: true, forceCenter: true);
             }
 
             _ = QueueAlertPolygonUpdateAsync();
@@ -407,10 +450,44 @@ namespace ThunderApp.Views
             await MapView.CoreWebView2.ExecuteScriptAsync(
                 $"updateGps({latStr}, {lonStr}, {zoom}, {(addTrail ? "true" : "false")});");
 
+            await UpdateRangeCircleOnMapAsync();
+
             if (forceCenter && !follow)
             {
                 await MapView.CoreWebView2.ExecuteScriptAsync($"setView({latStr}, {lonStr}, {zoom});");
             }
+        }
+
+        private async Task UpdateRangeCircleOnMapAsync()
+        {
+            if (!_mapReady || MapView?.CoreWebView2 == null) return;
+
+            _vm ??= DataContext as DashboardViewModel;
+            if (_vm == null) return;
+
+            bool enabled = _vm.FilterSettings.UseRadiusFilter;
+            double miles = _vm.FilterSettings.RadiusMiles;
+
+            // Center circle on GPS if available, otherwise manual.
+            double lat, lon;
+            if (_lastLat.HasValue && _lastLon.HasValue)
+            {
+                lat = _lastLat.Value;
+                lon = _lastLon.Value;
+            }
+            else
+            {
+                lat = _vm.FilterSettings.ManualLat;
+                lon = _vm.FilterSettings.ManualLon;
+            }
+
+            var latStr = lat.ToString(CultureInfo.InvariantCulture);
+            var lonStr = lon.ToString(CultureInfo.InvariantCulture);
+            var milesStr = miles.ToString(CultureInfo.InvariantCulture);
+            var enabledStr = enabled ? "true" : "false";
+
+            await MapView.CoreWebView2.ExecuteScriptAsync(
+                $"setRangeCircle({latStr}, {lonStr}, {enabledStr}, {milesStr});");
         }
 
         private async void FollowToggle_Checked(object sender, RoutedEventArgs e)

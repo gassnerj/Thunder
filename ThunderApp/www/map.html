@@ -43,6 +43,11 @@
     let routingControl = null;
     let radarLayer = null;
 
+    // Range circle
+    let rangeCircle = null;
+    let rangeCircleEnabled = false;
+    let rangeCircleMiles = 50;
+
     let trailPoints = [];
     const TRAIL_MAX_POINTS = 300;
 
@@ -95,6 +100,11 @@
         ensureMarker(lat, lon);
         if (addToTrail) addTrailPoint(lat, lon);
 
+        // keep range circle centered on GPS
+        if (rangeCircleEnabled) {
+            ensureRangeCircle(lat, lon, rangeCircleMiles);
+        }
+
         if (followEnabled) {
             if (typeof zoom === "number" && zoom !== lastZoom) {
                 lastZoom = zoom;
@@ -102,6 +112,49 @@
             } else {
                 map.panTo([lat, lon], { animate: true });
             }
+        }
+    };
+
+    // =======================
+    // Range Circle (miles)
+    // =======================
+
+    function ensureRangeCircle(lat, lon, miles) {
+        const meters = (miles || 0) * 1609.344;
+        if (!rangeCircle) {
+            rangeCircle = L.circle([lat, lon], {
+                radius: meters,
+                weight: 2,
+                opacity: 0.9,
+                fillOpacity: 0.06
+            }).addTo(map);
+        } else {
+            rangeCircle.setLatLng([lat, lon]);
+            rangeCircle.setRadius(meters);
+        }
+    }
+
+    window.setRangeCircle = (lat, lon, enabled, miles) => {
+        rangeCircleEnabled = !!enabled;
+        rangeCircleMiles = (typeof miles === "number") ? miles : parseFloat(miles);
+
+        if (!rangeCircleEnabled) {
+            if (rangeCircle) {
+                map.removeLayer(rangeCircle);
+                rangeCircle = null;
+            }
+            return;
+        }
+
+        if (typeof lat !== "number") lat = parseFloat(lat);
+        if (typeof lon !== "number") lon = parseFloat(lon);
+
+        // Prefer GPS marker center if available
+        if (gpsMarker) {
+            const p = gpsMarker.getLatLng();
+            ensureRangeCircle(p.lat, p.lng, rangeCircleMiles);
+        } else {
+            ensureRangeCircle(lat, lon, rangeCircleMiles);
         }
     };
 
