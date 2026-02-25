@@ -37,6 +37,8 @@ namespace ThunderApp.Views
         private DashboardViewModel? _vm;
 
         private PropertyChangedEventHandler? _filterChangedHandler;
+        private static bool _paletteHooked;
+
 
         private bool _splitApplied;
         
@@ -138,15 +140,26 @@ namespace ThunderApp.Views
                     if (args.PropertyName is nameof(AlertFilterSettings.MapSplitRatio))
                     {
                         ApplySavedAlertsMapSplit();
+                _ = UpdateMapStylingOnMapAsync();
                     }
 
-                    if (args.PropertyName is nameof(AlertFilterSettings.ShowSeverityOutline))
+                    if (args.PropertyName is nameof(AlertFilterSettings.ShowSeverityOutline)
+                        or nameof(AlertFilterSettings.ShowSeverityGlow)
+                        or nameof(AlertFilterSettings.ShowSeverityStripes)
+                        or nameof(AlertFilterSettings.HazardPaletteMode)
+                        or nameof(AlertFilterSettings.CustomHazardColors))
                     {
-                        _ = UpdateSeverityOutlineOnMapAsync();
+                        _ = UpdateMapStylingOnMapAsync();
                     }
                 };
 
                 _vm.FilterSettings.PropertyChanged += _filterChangedHandler;
+
+                if (!_paletteHooked)
+                {
+                    _paletteHooked = true;
+                    HazardColorPalette.PaletteChanged += () => _ = UpdateMapStylingOnMapAsync();
+                }
 
                 // Apply split once we have settings.
                 ApplySavedAlertsMapSplit();
@@ -162,7 +175,33 @@ namespace ThunderApp.Views
             await MapView.CoreWebView2.ExecuteScriptAsync($"setSeverityOutline({(_vm.FilterSettings.ShowSeverityOutline ? "true" : "false")});");
         }
 
-        private void ApplySavedAlertsMapSplit()
+        
+        private async Task UpdateMapStylingOnMapAsync()
+        {
+            if (!_mapReady || MapView?.CoreWebView2 == null) return;
+            _vm ??= DataContext as DashboardViewModel;
+            if (_vm?.FilterSettings == null) return;
+
+            // Hazard palette (effective)
+            try
+            {
+                var palette = ThunderApp.Services.HazardColorPalette.GetEffectivePalette();
+                var json = System.Text.Json.JsonSerializer.Serialize(palette);
+                await MapView.CoreWebView2.ExecuteScriptAsync($"setHazardPalette({json});");
+            }
+            catch { }
+
+            // Severity visuals
+            try
+            {
+                await MapView.CoreWebView2.ExecuteScriptAsync($"setSeverityOutline({(_vm.FilterSettings.ShowSeverityOutline ? "true" : "false")});");
+                await MapView.CoreWebView2.ExecuteScriptAsync($"setSeverityGlow({(_vm.FilterSettings.ShowSeverityGlow ? "true" : "false")});");
+                await MapView.CoreWebView2.ExecuteScriptAsync($"setSeverityStripes({(_vm.FilterSettings.ShowSeverityStripes ? "true" : "false")});");
+            }
+            catch { }
+        }
+
+private void ApplySavedAlertsMapSplit()
         {
             if (RightPaneGrid?.RowDefinitions == null || RightPaneGrid.RowDefinitions.Count < 3) return;
 

@@ -18,6 +18,7 @@ using MeteorologyCore;
 using ThunderApp.Models;
 using ThunderApp.Services;
 using ThunderApp.ViewModels;
+using ThunderApp.Views;
 
 namespace ThunderApp
 {
@@ -87,19 +88,37 @@ namespace ThunderApp
         {
             _appCts = new CancellationTokenSource();
 
-            // Use whatever concrete classes you ALREADY have in your project.
-            var alerts = new NwsAlertsService("ThunderApp (contact: you@example.com)");
-            var gps = new GpsService();          // <-- change to your actual class name
-            var log = new DiskLogService();      // <-- change to your actual class name
-            var settings = new JsonSettingsService<AlertFilterSettings>("alertFilters.json"); 
-            // <-- change to your actual class name
+            // Core app services.
+            var alerts = new NwsAlertsService("ThunderApp");
+            var gps = new GpsService();
+            var log = new DiskLogService();
+            var settings = new JsonSettingsService<AlertFilterSettings>("alertFilters.json");
+
+            // Shared HTTP + cache for NWS/SPC helpers.
+            var http = new HttpClient();
+            var cacheRoot = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "cache");
+            var cache = new SimpleDiskCache(cacheRoot);
 
             // Zone geometry resolver (used for range filtering when alerts only provide affected zone URLs)
-            var http = new HttpClient();
-            var cache = new SimpleDiskCache(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "cache"));
             var zones = new NwsZoneGeometryService(http, cache);
 
+            // SPC text products.
             var spcText = new SpcOutlookTextService(http, cache);
+
+            // Load the official NWS hazard color palette (best-effort; app runs fine if it fails).
+            var hazardColors = new HazardColorService(http, Path.Combine(cacheRoot, "hazardColors.txt"));
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var pal = await hazardColors.LoadOfficialAsync(_appCts.Token);
+                    HazardColorPalette.SetOfficial(pal);
+                }
+                catch
+                {
+                    // swallow - palette will fall back to built-in defaults
+                }
+            });
 
             _dashboardVm = new DashboardViewModel(alerts, gps, log, settings, zones, spcText);
             Dashboard.DataContext = _dashboardVm;
@@ -337,6 +356,26 @@ namespace ThunderApp
             w.Show();
         }
 
+        private void OpenMapStyling_OnClick(object sender, RoutedEventArgs e)
+        {
+            if (_dashboardVm?.FilterSettings == null) return;
+
+            var win = new MapStylingWindow(_dashboardVm.FilterSettings)
+            {
+                Owner = this
+            };
+
+            if (win.ShowDialog() == true)
+            {
+                // Persist
+                try { _dashboardVm.SaveFiltersCommand.Execute(null); } catch { }
+            }
+        }
+
+        private void OpenMapStyling_Executed(object sender, System.Windows.Input.ExecutedRoutedEventArgs e)
+        {
+            OpenMapStyling_OnClick(sender, e);
+        }
 
     }
 }

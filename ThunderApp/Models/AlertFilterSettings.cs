@@ -45,7 +45,26 @@ public partial class AlertFilterSettings : ObservableObject
     // If true, outlines encode the NWS "severity" field (Extreme/Severe/etc)
     [ObservableProperty] private bool showSeverityOutline = true;
 
-    // If an event is in this set => HIDDEN
+    
+
+    // -----------------------------
+    // Hazard color palette
+    // -----------------------------
+    // "Official" = use the official NWS WWA hazard colors (weather.gov help-map list).
+    // "Custom"   = apply CustomHazardColors overrides on top of the official list.
+    [ObservableProperty] private string hazardPaletteMode = "Official";
+
+    // Custom overrides: EventName -> Hex (e.g. "#FF0000" or "FF0000")
+    [ObservableProperty] private Dictionary<string, string> customHazardColors = new(StringComparer.OrdinalIgnoreCase);
+
+    // -----------------------------
+    // Severity overlay styling
+    // -----------------------------
+    [ObservableProperty] private bool showSeverityGlow = true;
+
+    // Draw diagonal stripes for the highest severities (Extreme)
+    [ObservableProperty] private bool showSeverityStripes = true;
+// If an event is in this set => HIDDEN
     // (we store "disabled" because it's easier to persist deltas)
     [ObservableProperty]
     private HashSet<string> disabledEvents = new(StringComparer.OrdinalIgnoreCase);

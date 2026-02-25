@@ -118,6 +118,8 @@ public partial class DashboardViewModel : ObservableObject
             _log.Log("Settings load failed: " + ex);
         }
 
+        HazardColorPalette.SetCustom(FilterSettings.HazardPaletteMode, FilterSettings.CustomHazardColors);
+
         BuildLifecycleGroups();
 
         // Initialize center from saved manual coordinates (works even without a GPS puck).
@@ -131,6 +133,12 @@ public partial class DashboardViewModel : ObservableObject
         // - category chip changes
         FilterSettings.PropertyChanged += (_, e) =>
         {
+            if (e.PropertyName is nameof(AlertFilterSettings.HazardPaletteMode)
+                or nameof(AlertFilterSettings.CustomHazardColors))
+            {
+                HazardColorPalette.SetCustom(FilterSettings.HazardPaletteMode, FilterSettings.CustomHazardColors);
+            }
+
             // keep it cheap: only react to relevant properties
             if (e.PropertyName is nameof(AlertFilterSettings.ShowExtreme)
                 or nameof(AlertFilterSettings.ShowSevere)

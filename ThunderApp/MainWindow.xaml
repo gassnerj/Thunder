@@ -189,12 +189,14 @@
 
     <Window.InputBindings>
         <KeyBinding Command="ApplicationCommands.Find" Key="F" Modifiers="Control" />
+        <KeyBinding Command="ApplicationCommands.Properties" Key="M" Modifiers="Control" />
     </Window.InputBindings>
 
     <DockPanel LastChildFill="True"> <!-- Menu --> <Menu DockPanel.Dock="Top" Padding="8,6">
             <MenuItem Header="_File" />
             <MenuItem Header="_View">
                 <MenuItem Header="Alert _Filters..." Command="ApplicationCommands.Find" InputGestureText="Ctrl+F" />
+                <MenuItem Header="Map _Styling..." Click="OpenMapStyling_OnClick" InputGestureText="Ctrl+M" />
             </MenuItem>
             <MenuItem Header="_Tools" />
             <MenuItem Header="_Help" />

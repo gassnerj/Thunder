@@ -36,6 +36,83 @@
     }).addTo(map);
 
     // =======================
+    // SVG defs (pattern + glow) for severity overlays
+    // =======================
+    let _defsReady = false;
+    function ensureSvgDefs() {
+        if (_defsReady) return;
+        const svg = map.getPanes().overlayPane.querySelector('svg');
+        if (!svg) return;
+
+        let defs = svg.querySelector('defs');
+        if (!defs) {
+            defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+            svg.insertBefore(defs, svg.firstChild);
+        }
+
+        // Diagonal stripes pattern (used for Extreme severity)
+        if (!svg.querySelector('#diagStripes')) {
+            const pattern = document.createElementNS('http://www.w3.org/2000/svg', 'pattern');
+            pattern.setAttribute('id', 'diagStripes');
+            pattern.setAttribute('patternUnits', 'userSpaceOnUse');
+            pattern.setAttribute('width', '10');
+            pattern.setAttribute('height', '10');
+            pattern.setAttribute('patternTransform', 'rotate(45)');
+
+            const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            rect.setAttribute('width', '10');
+            rect.setAttribute('height', '10');
+            rect.setAttribute('fill', 'transparent');
+            pattern.appendChild(rect);
+
+            const line = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            line.setAttribute('x', '0');
+            line.setAttribute('y', '0');
+            line.setAttribute('width', '4');
+            line.setAttribute('height', '10');
+            line.setAttribute('fill', 'rgba(255,255,255,0.25)');
+            pattern.appendChild(line);
+
+            defs.appendChild(pattern);
+        }
+
+        // Glow filter (used for Extreme severity)
+        if (!svg.querySelector('#sevGlow')) {
+            const filter = document.createElementNS('http://www.w3.org/2000/svg', 'filter');
+            filter.setAttribute('id', 'sevGlow');
+            filter.setAttribute('x', '-50%');
+            filter.setAttribute('y', '-50%');
+            filter.setAttribute('width', '200%');
+            filter.setAttribute('height', '200%');
+
+            const blur = document.createElementNS('http://www.w3.org/2000/svg', 'feGaussianBlur');
+            blur.setAttribute('in', 'SourceGraphic');
+            blur.setAttribute('stdDeviation', '2.2');
+            blur.setAttribute('result', 'blurOut');
+
+            const merge = document.createElementNS('http://www.w3.org/2000/svg', 'feMerge');
+            const m1 = document.createElementNS('http://www.w3.org/2000/svg', 'feMergeNode');
+            m1.setAttribute('in', 'blurOut');
+            const m2 = document.createElementNS('http://www.w3.org/2000/svg', 'feMergeNode');
+            m2.setAttribute('in', 'SourceGraphic');
+
+            merge.appendChild(m1);
+            merge.appendChild(m2);
+
+            filter.appendChild(blur);
+            filter.appendChild(merge);
+            defs.appendChild(filter);
+        }
+
+        _defsReady = true;
+    }
+
+    // try soon + whenever layers are added
+    setTimeout(ensureSvgDefs, 250);
+    map.on('layeradd', () => setTimeout(ensureSvgDefs, 0));
+
+
+    // =======================
     // State
     // =======================
     let followEnabled = true;
@@ -409,43 +486,47 @@
 
     // If true, the polygon outline encodes the NWS "severity" field.
     let severityOutlineEnabled = true;
+    let severityGlowEnabled = true;
+    let severityStripesEnabled = true;
 
     window.setSeverityOutline = (enabled) => {
         severityOutlineEnabled = !!enabled;
-        // Restyle without rebuilding data.
         try { alertLayer.setStyle(alertStyle); } catch {}
     };
 
-    // Official-ish event palette (WWA) for common hazards.
+    window.setSeverityGlow = (enabled) => {
+        severityGlowEnabled = !!enabled;
+        try { alertLayer.setStyle(alertStyle); } catch {}
+    };
+
+    window.setSeverityStripes = (enabled) => {
+        severityStripesEnabled = !!enabled;
+        try { alertLayer.setStyle(alertStyle); } catch {}
+    };
+
+    // Hazard palette (Event -> "#RRGGBB")
+    let hazardPalette = {};
+
+    window.setHazardPalette = (paletteObj) => {
+        hazardPalette = paletteObj || {};
+        try { alertLayer.setStyle(alertStyle); } catch {}
+    };
+
+    // Look up event color using the active palette. Fallback if unknown.
     function eventColor(eventName) {
-        const e = (eventName || "").toString().toLowerCase();
+        const key = (eventName || "").toString().trim();
+        if (!key) return "#A0A0A0";
 
-        // Core chase-critical
-        if (e.includes("tornado warning")) return "#FF0000";
-        if (e.includes("severe thunderstorm warning")) return "#FFA500";
-        if (e.includes("flash flood warning")) return "#8B0000";
-        if (e.includes("extreme wind warning")) return "#FF8C00";
+        // Exact match first (case-sensitive keys in object, but we normalize below)
+        if (hazardPalette[key]) return hazardPalette[key];
 
-        // Watches
-        if (e.includes("tornado watch")) return "#FFCC00";
-        if (e.includes("severe thunderstorm watch")) return "#FFCC00";
+        // Case-insensitive match
+        const lower = key.toLowerCase();
+        for (const k in hazardPalette) {
+            if ((k || "").toLowerCase() === lower) return hazardPalette[k];
+        }
 
-        // Flood products
-        if (e.includes("flood warning")) return "#00A651";
-        if (e.includes("flood advisory")) return "#00C17D";
-        if (e.includes("flood watch")) return "#2E8B57";
-
-        // Fire
-        if (e.includes("red flag warning")) return "#FF1493";
-        if (e.includes("fire weather watch")) return "#FF69B4";
-
-        // Winter (basic)
-        if (e.includes("blizzard warning")) return "#FF69B4";
-        if (e.includes("winter storm warning")) return "#FF69B4";
-        if (e.includes("ice storm warning")) return "#8A2BE2";
-
-        // Fallback
-        return "#6B7280"; // slate
+        return "#A0A0A0";
     }
 
     function severityStroke(severity) {
@@ -498,6 +579,33 @@
         style: alertStyle,
         onEachFeature: (feature, layer) => {
             const p = feature.properties || {};
+
+            // Apply severity visual effects (optional)
+            layer.on("add", () => {
+                try {
+                    ensureSvgDefs();
+                    const sev = (p.severity || "").toString().toLowerCase();
+                    const isExtreme = sev === "extreme";
+                    if (!layer._path) return;
+
+                    // Glow for Extreme
+                    if (severityGlowEnabled && isExtreme) {
+                        layer._path.style.filter = "url(#sevGlow)";
+                    } else {
+                        layer._path.style.filter = "";
+                    }
+
+                    // Stripes for Extreme
+                    if (severityStripesEnabled && isExtreme) {
+                        layer._path.setAttribute("fill", "url(#diagStripes)");
+                    } else {
+                        // restore to normal fill color
+                        const base = eventColor(p.event || p.Event || "");
+                        layer._path.setAttribute("fill", base);
+                    }
+                } catch {}
+            });
+
             layer.bindPopup(`<b>${p.event || "Alert"}</b><br>${p.headline || ""}`);
 
             layer.on("click", () => {
