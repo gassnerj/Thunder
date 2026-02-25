@@ -37,6 +37,8 @@ namespace ThunderApp.Views
         private DashboardViewModel? _vm;
 
         private PropertyChangedEventHandler? _filterChangedHandler;
+
+        private bool _splitApplied;
         
         private int _alertsUpdateVersion;
 
@@ -93,9 +95,85 @@ namespace ThunderApp.Views
                     {
                         _ = UpdateRangeCircleOnMapAsync();
                     }
+
+                    if (args.PropertyName is nameof(AlertFilterSettings.ShowSpcDay1)
+                        or nameof(AlertFilterSettings.ShowSpcDay2)
+                        or nameof(AlertFilterSettings.ShowSpcDay3))
+                    {
+                        _ = UpdateSpcOverlaysOnMapAsync();
+                    }
+
+                    if (args.PropertyName is nameof(AlertFilterSettings.MapSplitRatio))
+                    {
+                        ApplySavedAlertsMapSplit();
+                    }
                 };
 
                 _vm.FilterSettings.PropertyChanged += _filterChangedHandler;
+
+                // Apply split once we have settings.
+                ApplySavedAlertsMapSplit();
+            }
+        }
+
+        private void ApplySavedAlertsMapSplit()
+        {
+            if (RightPaneGrid?.RowDefinitions == null || RightPaneGrid.RowDefinitions.Count < 3) return;
+
+            _vm ??= DataContext as DashboardViewModel;
+            if (_vm?.FilterSettings == null) return;
+
+            if (_splitApplied && !_mapReady) return;
+
+            double r = _vm.FilterSettings.MapSplitRatio;
+            if (double.IsNaN(r) || double.IsInfinity(r)) r = 0.50;
+            r = Math.Max(0.15, Math.Min(0.85, r));
+
+            // Row 0 = alerts; Row 2 = map
+            RightPaneGrid.RowDefinitions[0].Height = new GridLength(1.0 - r, GridUnitType.Star);
+            RightPaneGrid.RowDefinitions[2].Height = new GridLength(r, GridUnitType.Star);
+
+            _splitApplied = true;
+        }
+
+        private async Task UpdateSpcOverlaysOnMapAsync()
+        {
+            if (!_mapReady || MapView?.CoreWebView2 == null) return;
+
+            _vm ??= DataContext as DashboardViewModel;
+            if (_vm?.FilterSettings == null) return;
+
+            // day1/day2/day3 categorical overlays
+            await MapView.CoreWebView2.ExecuteScriptAsync($"setSpcOutlook('day1', {(_vm.FilterSettings.ShowSpcDay1 ? "true" : "false")});");
+            await MapView.CoreWebView2.ExecuteScriptAsync($"setSpcOutlook('day2', {(_vm.FilterSettings.ShowSpcDay2 ? "true" : "false")});");
+            await MapView.CoreWebView2.ExecuteScriptAsync($"setSpcOutlook('day3', {(_vm.FilterSettings.ShowSpcDay3 ? "true" : "false")});");
+        }
+
+        private void AlertsMapSplitter_DragCompleted(object sender, System.Windows.Controls.Primitives.DragCompletedEventArgs e)
+        {
+            try
+            {
+                _vm ??= DataContext as DashboardViewModel;
+                if (_vm?.FilterSettings == null) return;
+
+                if (RightPaneGrid?.RowDefinitions == null || RightPaneGrid.RowDefinitions.Count < 3) return;
+
+                double alertsH = RightPaneGrid.RowDefinitions[0].ActualHeight;
+                double mapH = RightPaneGrid.RowDefinitions[2].ActualHeight;
+                double total = alertsH + mapH;
+                if (total < 50) return;
+
+                double ratio = mapH / total;
+                ratio = Math.Max(0.15, Math.Min(0.85, ratio));
+
+                _vm.FilterSettings.MapSplitRatio = ratio;
+
+                // Persist immediately so it survives a crash while driving.
+                if (_vm.SaveFiltersCommand?.CanExecute(null) == true)
+                    _vm.SaveFiltersCommand.Execute(null);
+            }
+            catch
+            {
             }
         }
 
@@ -167,17 +245,65 @@ namespace ThunderApp.Views
                         return;
                     }
 
-                    if (!msg.Contains("\"type\":\"polygonClicked\"")) return;
                     using JsonDocument doc = JsonDocument.Parse(msg);
                     JsonElement root = doc.RootElement;
 
-                    string? id = root.GetProperty("id").GetString();
-                    if (string.IsNullOrWhiteSpace(id)) return;
+                    string? type = root.TryGetProperty("type", out var t) ? t.GetString() : null;
+                    if (string.IsNullOrWhiteSpace(type)) return;
 
-                    // Clicking a polygon should only select the corresponding alert.
-                    // Routing is initiated explicitly via the "Route" button.
-                    await Dispatcher.InvokeAsync(() => SelectAlertById(id));
-                    return;
+                    if (type == "polygonClicked")
+                    {
+                        string? id = root.GetProperty("id").GetString();
+                        if (string.IsNullOrWhiteSpace(id)) return;
+
+                        // Clicking a polygon should only select the corresponding alert.
+                        // Routing is initiated explicitly via the "Route" button.
+                        await Dispatcher.InvokeAsync(() => SelectAlertById(id));
+                        return;
+                    }
+
+                    if (type == "mapClick" || type == "mapDblClick")
+                    {
+                        if (!root.TryGetProperty("lat", out var latEl) || !root.TryGetProperty("lon", out var lonEl))
+                            return;
+
+                        double lat = latEl.GetDouble();
+                        double lon = lonEl.GetDouble();
+
+                        await Dispatcher.InvokeAsync(async () =>
+                        {
+                            _vm ??= DataContext as DashboardViewModel;
+                            if (_vm == null) return;
+
+                            _vm.MapClickCoordsText = $"Map: {lat:0.#####}, {lon:0.#####}  (double-click to set)";
+
+                            if (type == "mapDblClick")
+                            {
+                                // Move "manual location" to the double-clicked point.
+                                _vm.ManualCoordsText = $"{lat:0.##########}, {lon:0.##########}";
+                                _vm.SetCurrentLocation(lat, lon);
+
+                                if (FollowToggle != null)
+                                    FollowToggle.IsChecked = true;
+
+                                await UpdateMapLocationAsync(lat, lon, DefaultZoom, addTrail: false, forceCenter: true);
+                            }
+                        });
+
+                        return;
+                    }
+
+                    if (type == "spcError")
+                    {
+                        string day = root.TryGetProperty("day", out var d) ? (d.GetString() ?? "") : "";
+                        string message = root.TryGetProperty("message", out var m) ? (m.GetString() ?? "") : "";
+                        await Dispatcher.InvokeAsync(() =>
+                        {
+                            if (_vm != null)
+                                _vm.StatusText = $"SPC overlay error ({day}): {message}";
+                        });
+                        return;
+                    }
                 }
                 catch
                 {
@@ -187,7 +313,10 @@ namespace ThunderApp.Views
             MapView.NavigationCompleted += (o, __) =>
             {
                 _mapReady = true;
+                ApplySavedAlertsMapSplit();
                 _ = QueueAlertPolygonUpdateAsync();
+                _ = UpdateRangeCircleOnMapAsync();
+                _ = UpdateSpcOverlaysOnMapAsync();
             };
 
             MapView.Source = new Uri("https://app/map.html");

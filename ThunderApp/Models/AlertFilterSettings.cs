@@ -25,6 +25,20 @@ public partial class AlertFilterSettings : ObservableObject
     // WeatherFront-style category chips
     [ObservableProperty] private AlertCategory selectedCategory = AlertCategory.Severe;
 
+    // -----------------------------
+    // Dashboard layout
+    // 0.0 = all alerts, 1.0 = all map
+    // (default: 0.50 => equal split)
+    // -----------------------------
+    [ObservableProperty] private double mapSplitRatio = 0.50;
+
+    // -----------------------------
+    // SPC Outlook overlays
+    // -----------------------------
+    [ObservableProperty] private bool showSpcDay1 = false;
+    [ObservableProperty] private bool showSpcDay2 = false;
+    [ObservableProperty] private bool showSpcDay3 = false;
+
     // If an event is in this set => HIDDEN
     // (we store "disabled" because it's easier to persist deltas)
     [ObservableProperty]

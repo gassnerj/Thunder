@@ -29,7 +29,7 @@
     // =======================
     // Map Base
     // =======================
-    const map = L.map('map', { zoomControl: true }).setView([39.5, -98.35], 4);
+    const map = L.map('map', { zoomControl: true, doubleClickZoom: false }).setView([39.5, -98.35], 4);
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 18
@@ -208,6 +208,86 @@
             window.chrome.webview.postMessage(JSON.stringify(obj));
         }
     }
+
+    // =======================
+    // Map Click -> Coordinates
+    // =======================
+
+    map.on('click', (e) => {
+        postToHost({ type: "mapClick", lat: e.latlng.lat, lon: e.latlng.lng });
+    });
+
+    map.on('dblclick', (e) => {
+        postToHost({ type: "mapDblClick", lat: e.latlng.lat, lon: e.latlng.lng });
+    });
+
+    // =======================
+    // SPC Outlook Overlays
+    // =======================
+
+    const spc = {
+        layers: {},
+        enabled: { day1: false, day2: false, day3: false }
+    };
+
+    const spcUrls = {
+        day1: "https://www.spc.noaa.gov/products/outlook/day1otlk_cat.nolyr.geojson",
+        day2: "https://www.spc.noaa.gov/products/outlook/day2otlk_cat.nolyr.geojson",
+        day3: "https://www.spc.noaa.gov/products/outlook/day3otlk_cat.nolyr.geojson"
+    };
+
+    function spcStyle(feature) {
+        const p = feature?.properties || {};
+        const label = (p.LABEL || p.label || p.RISK || p.risk || "").toString().toUpperCase();
+
+        // Keep it simple: stronger for higher categories.
+        // (We intentionally avoid hardcoding a full palette here.)
+        let weight = 2;
+        let fillOpacity = 0.10;
+        if (label.includes("MDT") || label.includes("MODERATE")) fillOpacity = 0.16;
+        if (label.includes("HIGH")) fillOpacity = 0.20;
+
+        return { weight, opacity: 0.9, fillOpacity };
+    }
+
+    async function ensureSpcLayer(dayKey) {
+        if (spc.layers[dayKey]) return spc.layers[dayKey];
+
+        const url = spcUrls[dayKey];
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error(`SPC fetch failed: ${dayKey}`);
+
+        const data = await resp.json();
+        const layer = L.geoJSON(data, {
+            style: spcStyle,
+            onEachFeature: (feature, lyr) => {
+                const p = feature?.properties || {};
+                const label = (p.LABEL || p.label || p.RISK || p.risk || "SPC Outlook");
+                lyr.bindTooltip(label, { sticky: true });
+            }
+        });
+
+        spc.layers[dayKey] = layer;
+        return layer;
+    }
+
+    window.setSpcOutlook = async (dayKey, enabled) => {
+        const key = (dayKey || "").toString().toLowerCase();
+        if (!spcUrls[key]) return;
+
+        spc.enabled[key] = !!enabled;
+
+        try {
+            if (spc.enabled[key]) {
+                const lyr = await ensureSpcLayer(key);
+                lyr.addTo(map);
+            } else {
+                if (spc.layers[key]) map.removeLayer(spc.layers[key]);
+            }
+        } catch (err) {
+            postToHost({ type: "spcError", day: key, message: (err && err.message) ? err.message : String(err) });
+        }
+    };
 
     function showRouteError(msg) {
         L.popup()

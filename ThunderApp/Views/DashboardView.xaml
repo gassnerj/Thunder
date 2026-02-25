@@ -444,12 +444,35 @@
                          ToolTip="Paste coordinates like: 35.13942856886735, -92.10533693471073"
                          Text="{Binding ManualCoordsText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
 
+                <TextBlock Style="{StaticResource DashMuted}"
+                           Text="{Binding MapClickCoordsText}"
+                           Margin="0,0,0,12" />
+
                 <Button Content="Alert Filters…"
                         Style="{StaticResource DashActionButton}"
                         Command="{x:Static ApplicationCommands.Find}"
                         Margin="0,0,0,12" />
 
                 <Separator Margin="0,0,0,12" />
+
+                <TextBlock Style="{StaticResource DashMuted}"
+                           Text="Overlays"
+                           Margin="0,0,0,8" />
+
+                <CheckBox Content="SPC Day 1 Outlook"
+                          Style="{StaticResource WfSwitch}"
+                          IsChecked="{Binding FilterSettings.ShowSpcDay1}"
+                          Margin="0,0,0,6" />
+
+                <CheckBox Content="SPC Day 2 Outlook"
+                          Style="{StaticResource WfSwitch}"
+                          IsChecked="{Binding FilterSettings.ShowSpcDay2}"
+                          Margin="0,0,0,6" />
+
+                <CheckBox Content="SPC Day 3 Outlook"
+                          Style="{StaticResource WfSwitch}"
+                          IsChecked="{Binding FilterSettings.ShowSpcDay3}"
+                          Margin="0,0,0,12" />
 
                 <!-- Keep command buttons visible; filter UI moved to separate window -->
                 <UniformGrid Columns="2" Margin="0,8,0,0">
@@ -513,10 +536,10 @@
 
         <!-- ================= RIGHT COLUMN (Alerts + Map) ================= -->
 
-        <Grid Grid.Column="2">
+        <Grid Grid.Column="2" x:Name="RightPaneGrid">
             <Grid.RowDefinitions>
                 <RowDefinition Height="*" />
-                <RowDefinition Height="12" />
+                <RowDefinition Height="6" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
@@ -759,6 +782,15 @@
                     </Grid>
                 </Grid>
             </Border>
+
+            <!-- Splitter between Alerts and Map (resizable; ratio is persisted) -->
+            <GridSplitter Grid.Row="1"
+                          Height="6"
+                          HorizontalAlignment="Stretch"
+                          VerticalAlignment="Stretch"
+                          Background="Transparent"
+                          ShowsPreview="True"
+                          DragCompleted="AlertsMapSplitter_DragCompleted" />
 
             <!-- ===== Map ===== -->
             <Border Grid.Row="2"

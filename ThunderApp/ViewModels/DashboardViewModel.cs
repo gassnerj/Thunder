@@ -50,6 +50,9 @@ public partial class DashboardViewModel : ObservableObject
     // Single textbox input for manual coordinates, e.g. "35.1394, -92.1053".
     [ObservableProperty] private string manualCoordsText = "";
 
+    // Shows the last clicked map coordinates (single click).
+    [ObservableProperty] private string mapClickCoordsText = "";
+
     // Latest known location (GPS or manual). Used for radius filtering + fast refresh.
     [ObservableProperty] private GeoPoint? currentLocation;
 
