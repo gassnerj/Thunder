@@ -87,6 +87,37 @@ public static class HazardColorPalette
         }
     }
 
+    
+    public static bool TryGetOfficialHex(string eventName, out string hex)
+    {
+        hex = "";
+        if (string.IsNullOrWhiteSpace(eventName)) return false;
+        lock (Gate)
+        {
+            if (_official.TryGetValue(eventName.Trim(), out var o) && !string.IsNullOrWhiteSpace(o))
+            {
+                hex = NormalizeHex(o);
+                return true;
+            }
+            return false;
+        }
+    }
+
+    public static bool TryGetCustomHex(string eventName, out string? hex)
+    {
+        hex = null;
+        if (string.IsNullOrWhiteSpace(eventName)) return false;
+        lock (Gate)
+        {
+            if (_custom.TryGetValue(eventName.Trim(), out var c) && !string.IsNullOrWhiteSpace(c))
+            {
+                hex = NormalizeHex(c);
+                return true;
+            }
+            return false;
+        }
+    }
+
     public static Brush GetBrush(string eventName)
     {
         var hex = GetHex(eventName);
@@ -102,9 +133,17 @@ public static class HazardColorPalette
 
     private static string NormalizeHex(string hex)
     {
-        hex = hex.Trim();
+        hex = (hex ?? string.Empty).Trim();
+        if (hex.Length == 0) return "#A0A0A0";
+
         if (!hex.StartsWith("#")) hex = "#" + hex;
+
+        // #RRGGBB
         if (hex.Length == 7) return hex.ToUpperInvariant();
+
+        // #AARRGGBB (supports alpha, e.g. transparent)
+        if (hex.Length == 9) return hex.ToUpperInvariant();
+
         return "#A0A0A0";
     }
 }

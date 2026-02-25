@@ -402,7 +402,8 @@ private void ApplySavedAlertsMapSplit()
                 _ = QueueAlertPolygonUpdateAsync();
                 _ = UpdateRangeCircleOnMapAsync();
                 _ = UpdateSpcOverlaysOnMapAsync();
-                _ = UpdateSeverityOutlineOnMapAsync();
+                // Push palette + severity visuals immediately on first load.
+                _ = UpdateMapStylingOnMapAsync();
             };
 
             MapView.Source = new Uri("https://app/map.html");

@@ -1,0 +1,567 @@
+{
+  "source": "weather.gov/help-map (Hazards Map colors)",
+  "last_updated": "2025-03-10",
+  "notes": [
+    "Event names must match NWS CAP 'event' field (case-insensitive).",
+    "officialHex is the weather.gov hazards map color.",
+    "customHex is for user overrides; leave blank/null for defaults.",
+    "Events marked as Transparent in the source list are stored as #00FFFFFF (alpha 0)."
+  ],
+  "items": [
+    {
+      "event": "Tsunami Warning",
+      "officialHex": "#FD6347",
+      "customHex": null
+    },
+    {
+      "event": "Tornado Warning",
+      "officialHex": "#FF0000",
+      "customHex": null
+    },
+    {
+      "event": "Extreme Wind Warning",
+      "officialHex": "#FF8C00",
+      "customHex": null
+    },
+    {
+      "event": "Severe Thunderstorm Warning",
+      "officialHex": "#FFA500",
+      "customHex": null
+    },
+    {
+      "event": "Flash Flood Warning",
+      "officialHex": "#8B0000",
+      "customHex": null
+    },
+    {
+      "event": "Flash Flood Statement",
+      "officialHex": "#8B0000",
+      "customHex": null
+    },
+    {
+      "event": "Severe Weather Statement",
+      "officialHex": "#00FFFF",
+      "customHex": null
+    },
+    {
+      "event": "Shelter In Place Warning",
+      "officialHex": "#FA8072",
+      "customHex": null
+    },
+    {
+      "event": "Evacuation Immediate",
+      "officialHex": "#7FFF00",
+      "customHex": null
+    },
+    {
+      "event": "Civil Danger Warning",
+      "officialHex": "#FFB6C1",
+      "customHex": null
+    },
+    {
+      "event": "Nuclear Power Plant Warning",
+      "officialHex": "#4B0082",
+      "customHex": null
+    },
+    {
+      "event": "Radiological Hazard Warning",
+      "officialHex": "#4B0082",
+      "customHex": null
+    },
+    {
+      "event": "Hazardous Materials Warning",
+      "officialHex": "#4B0082",
+      "customHex": null
+    },
+    {
+      "event": "Fire Warning",
+      "officialHex": "#A0522D",
+      "customHex": null
+    },
+    {
+      "event": "Civil Emergency Message",
+      "officialHex": "#FFB6C1",
+      "customHex": null
+    },
+    {
+      "event": "Law Enforcement Warning",
+      "officialHex": "#C0C0C0",
+      "customHex": null
+    },
+    {
+      "event": "Storm Surge Warning",
+      "officialHex": "#B524F7",
+      "customHex": null
+    },
+    {
+      "event": "Hurricane Force Wind Warning",
+      "officialHex": "#CD5C5C",
+      "customHex": null
+    },
+    {
+      "event": "Hurricane Warning",
+      "officialHex": "#DC143C",
+      "customHex": null
+    },
+    {
+      "event": "Typhoon Warning",
+      "officialHex": "#DC143C",
+      "customHex": null
+    },
+    {
+      "event": "Special Marine Warning",
+      "officialHex": "#FFA500",
+      "customHex": null
+    },
+    {
+      "event": "Blizzard Warning",
+      "officialHex": "#FF4500",
+      "customHex": null
+    },
+    {
+      "event": "Snow Squall Warning",
+      "officialHex": "#C71585",
+      "customHex": null
+    },
+    {
+      "event": "Ice Storm Warning",
+      "officialHex": "#8B008B",
+      "customHex": null
+    },
+    {
+      "event": "Heavy Freezing Spray Warning",
+      "officialHex": "#00BFFF",
+      "customHex": null
+    },
+    {
+      "event": "Winter Storm Warning",
+      "officialHex": "#FF69B4",
+      "customHex": null
+    },
+    {
+      "event": "Lake Effect Snow Warning",
+      "officialHex": "#008B8B",
+      "customHex": null
+    },
+    {
+      "event": "Dust Storm Warning",
+      "officialHex": "#FFE4C4",
+      "customHex": null
+    },
+    {
+      "event": "Blowing Dust Warning",
+      "officialHex": "#FFE4C4",
+      "customHex": null
+    },
+    {
+      "event": "High Wind Warning",
+      "officialHex": "#DAA520",
+      "customHex": null
+    },
+    {
+      "event": "Tropical Storm Warning",
+      "officialHex": "#B22222",
+      "customHex": null
+    },
+    {
+      "event": "Storm Warning",
+      "officialHex": "#9400D3",
+      "customHex": null
+    },
+    {
+      "event": "Tsunami Advisory",
+      "officialHex": "#D2691E",
+      "customHex": null
+    },
+    {
+      "event": "Tsunami Watch",
+      "officialHex": "#FF00FF",
+      "customHex": null
+    },
+    {
+      "event": "Avalanche Warning",
+      "officialHex": "#1E90FF",
+      "customHex": null
+    },
+    {
+      "event": "Earthquake Warning",
+      "officialHex": "#8B4513",
+      "customHex": null
+    },
+    {
+      "event": "Volcano Warning",
+      "officialHex": "#2F4F4F",
+      "customHex": null
+    },
+    {
+      "event": "Ashfall Warning",
+      "officialHex": "#A9A9A9",
+      "customHex": null
+    },
+    {
+      "event": "Flood Warning",
+      "officialHex": "#00FF00",
+      "customHex": null
+    },
+    {
+      "event": "Coastal Flood Warning",
+      "officialHex": "#228B22",
+      "customHex": null
+    },
+    {
+      "event": "Lakeshore Flood Warning",
+      "officialHex": "#228B22",
+      "customHex": null
+    },
+    {
+      "event": "Ashfall Advisory",
+      "officialHex": "#696969",
+      "customHex": null
+    },
+    {
+      "event": "High Surf Warning",
+      "officialHex": "#228B22",
+      "customHex": null
+    },
+    {
+      "event": "Extreme Heat Warning",
+      "officialHex": "#C71585",
+      "customHex": null
+    },
+    {
+      "event": "Tornado Watch",
+      "officialHex": "#FFFF00",
+      "customHex": null
+    },
+    {
+      "event": "Severe Thunderstorm Watch",
+      "officialHex": "#DB7093",
+      "customHex": null
+    },
+    {
+      "event": "Flash Flood Watch",
+      "officialHex": "#2E8B57",
+      "customHex": null
+    },
+    {
+      "event": "Gale Warning",
+      "officialHex": "#DDA0DD",
+      "customHex": null
+    },
+    {
+      "event": "Flood Statement",
+      "officialHex": "#00FF00",
+      "customHex": null
+    },
+    {
+      "event": "Extreme Cold Warning",
+      "officialHex": "#0000FF",
+      "customHex": null
+    },
+    {
+      "event": "Freeze Warning",
+      "officialHex": "#483D8B",
+      "customHex": null
+    },
+    {
+      "event": "Red Flag Warning",
+      "officialHex": "#FF1493",
+      "customHex": null
+    },
+    {
+      "event": "Storm Surge Watch",
+      "officialHex": "#DB7FF7",
+      "customHex": null
+    },
+    {
+      "event": "Hurricane Watch",
+      "officialHex": "#FF00FF",
+      "customHex": null
+    },
+    {
+      "event": "Hurricane Force Wind Watch",
+      "officialHex": "#9932CC",
+      "customHex": null
+    },
+    {
+      "event": "Typhoon Watch",
+      "officialHex": "#FF00FF",
+      "customHex": null
+    },
+    {
+      "event": "Tropical Storm Watch",
+      "officialHex": "#F08080",
+      "customHex": null
+    },
+    {
+      "event": "Storm Watch",
+      "officialHex": "#FFE4B5",
+      "customHex": null
+    },
+    {
+      "event": "Tropical Cyclone Local Statement",
+      "officialHex": "#FFE4B5",
+      "customHex": null
+    },
+    {
+      "event": "Winter Weather Advisory",
+      "officialHex": "#7B68EE",
+      "customHex": null
+    },
+    {
+      "event": "Avalanche Advisory",
+      "officialHex": "#CD853F",
+      "customHex": null
+    },
+    {
+      "event": "Cold Weather Advisory",
+      "officialHex": "#AFEEEE",
+      "customHex": null
+    },
+    {
+      "event": "Heat Advisory",
+      "officialHex": "#FF7F50",
+      "customHex": null
+    },
+    {
+      "event": "Flood Advisory",
+      "officialHex": "#00FF7F",
+      "customHex": null
+    },
+    {
+      "event": "Coastal Flood Advisory",
+      "officialHex": "#7CFC00",
+      "customHex": null
+    },
+    {
+      "event": "Lakeshore Flood Advisory",
+      "officialHex": "#7CFC00",
+      "customHex": null
+    },
+    {
+      "event": "High Surf Advisory",
+      "officialHex": "#BA55D3",
+      "customHex": null
+    },
+    {
+      "event": "Dense Fog Advisory",
+      "officialHex": "#708090",
+      "customHex": null
+    },
+    {
+      "event": "Dense Smoke Advisory",
+      "officialHex": "#F0E68C",
+      "customHex": null
+    },
+    {
+      "event": "Small Craft Advisory",
+      "officialHex": "#D8BFD8",
+      "customHex": null
+    },
+    {
+      "event": "Brisk Wind Advisory",
+      "officialHex": "#D8BFD8",
+      "customHex": null
+    },
+    {
+      "event": "Hazardous Seas Warning",
+      "officialHex": "#D8BFD8",
+      "customHex": null
+    },
+    {
+      "event": "Dust Advisory",
+      "officialHex": "#BDB76B",
+      "customHex": null
+    },
+    {
+      "event": "Blowing Dust Advisory",
+      "officialHex": "#BDB76B",
+      "customHex": null
+    },
+    {
+      "event": "Lake Wind Advisory",
+      "officialHex": "#D2B48C",
+      "customHex": null
+    },
+    {
+      "event": "Wind Advisory",
+      "officialHex": "#D2B48C",
+      "customHex": null
+    },
+    {
+      "event": "Frost Advisory",
+      "officialHex": "#6495ED",
+      "customHex": null
+    },
+    {
+      "event": "Freezing Fog Advisory",
+      "officialHex": "#008080",
+      "customHex": null
+    },
+    {
+      "event": "Freezing Spray Advisory",
+      "officialHex": "#00BFFF",
+      "customHex": null
+    },
+    {
+      "event": "Low Water Advisory",
+      "officialHex": "#A52A2A",
+      "customHex": null
+    },
+    {
+      "event": "Local Area Emergency",
+      "officialHex": "#C0C0C0",
+      "customHex": null
+    },
+    {
+      "event": "Winter Storm Watch",
+      "officialHex": "#4682B4",
+      "customHex": null
+    },
+    {
+      "event": "Rip Current Statement",
+      "officialHex": "#40E0D0",
+      "customHex": null
+    },
+    {
+      "event": "Beach Hazards Statement",
+      "officialHex": "#40E0D0",
+      "customHex": null
+    },
+    {
+      "event": "Gale Watch",
+      "officialHex": "#FFC0CB",
+      "customHex": null
+    },
+    {
+      "event": "Avalanche Watch",
+      "officialHex": "#F4A460",
+      "customHex": null
+    },
+    {
+      "event": "Hazardous Seas Watch",
+      "officialHex": "#483D8B",
+      "customHex": null
+    },
+    {
+      "event": "Heavy Freezing Spray Watch",
+      "officialHex": "#BC8F8F",
+      "customHex": null
+    },
+    {
+      "event": "Flood Watch",
+      "officialHex": "#2E8B57",
+      "customHex": null
+    },
+    {
+      "event": "Coastal Flood Watch",
+      "officialHex": "#66CDAA",
+      "customHex": null
+    },
+    {
+      "event": "Lakeshore Flood Watch",
+      "officialHex": "#66CDAA",
+      "customHex": null
+    },
+    {
+      "event": "High Wind Watch",
+      "officialHex": "#B8860B",
+      "customHex": null
+    },
+    {
+      "event": "Extreme Heat Watch",
+      "officialHex": "#800000",
+      "customHex": null
+    },
+    {
+      "event": "Extreme Cold Watch",
+      "officialHex": "#5F9EA0",
+      "customHex": null
+    },
+    {
+      "event": "Freeze Watch",
+      "officialHex": "#00FFFF",
+      "customHex": null
+    },
+    {
+      "event": "Fire Weather Watch",
+      "officialHex": "#FFDEAD",
+      "customHex": null
+    },
+    {
+      "event": "Extreme Fire Danger",
+      "officialHex": "#E9967A",
+      "customHex": null
+    },
+    {
+      "event": "911 Telephone Outage",
+      "officialHex": "#C0C0C0",
+      "customHex": null
+    },
+    {
+      "event": "Coastal Flood Statement",
+      "officialHex": "#6B8E23",
+      "customHex": null
+    },
+    {
+      "event": "Lakeshore Flood Statement",
+      "officialHex": "#6B8E23",
+      "customHex": null
+    },
+    {
+      "event": "Special Weather Statement",
+      "officialHex": "#FFE4B5",
+      "customHex": null
+    },
+    {
+      "event": "Marine Weather Statement",
+      "officialHex": "#FFDAB9",
+      "customHex": null
+    },
+    {
+      "event": "Air Quality Alert",
+      "officialHex": "#808080",
+      "customHex": null
+    },
+    {
+      "event": "Air Stagnation Advisory",
+      "officialHex": "#808080",
+      "customHex": null
+    },
+    {
+      "event": "Hazardous Weather Outlook",
+      "officialHex": "#EEE8AA",
+      "customHex": null
+    },
+    {
+      "event": "Hydrologic Outlook",
+      "officialHex": "#90EE90",
+      "customHex": null
+    },
+    {
+      "event": "Short Term Forecast",
+      "officialHex": "#98FB98",
+      "customHex": null
+    },
+    {
+      "event": "Administrative Message",
+      "officialHex": "#C0C0C0",
+      "customHex": null
+    },
+    {
+      "event": "Test",
+      "officialHex": "#F0FFFF",
+      "customHex": null
+    },
+    {
+      "event": "Child Abduction Emergency",
+      "officialHex": "#00FFFFFF",
+      "customHex": null
+    },
+    {
+      "event": "Blue Alert",
+      "officialHex": "#00FFFFFF",
+      "customHex": null
+    }
+  ]
+}

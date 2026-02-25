@@ -1,9 +1,20 @@
 <Window x:Class="ThunderApp.Views.MapStylingWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:shell="http://schemas.microsoft.com/winfx/2006/xaml/presentation/shell"
         Title="Map Styling" Height="720" Width="860"
         WindowStartupLocation="CenterOwner"
-        Background="{DynamicResource Surface}">
+        Background="{DynamicResource AppBg}"
+        WindowStyle="None"
+        ResizeMode="CanResize">
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="38"
+                            CornerRadius="0"
+                            GlassFrameThickness="0"
+                            ResizeBorderThickness="6"
+                            UseAeroCaptionButtons="False" />
+    </WindowChrome.WindowChrome>
+
     <Window.Resources>
         <Style x:Key="DashToggleButton" TargetType="ToggleButton">
             <Setter Property="Height" Value="34" />
@@ -40,6 +51,7 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
         <Style TargetType="DataGrid">
             <Setter Property="Foreground" Value="{DynamicResource Text}" />
             <Setter Property="RowBackground" Value="{DynamicResource Surface2}" />
@@ -84,50 +96,157 @@
             <Setter Property="Padding" Value="8,6" />
         </Style>
 
-        <Style TargetType="Button">
-            <Setter Property="Foreground" Value="{DynamicResource Text}" />
-            <Setter Property="Background" Value="{DynamicResource Surface2}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource Border}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Padding" Value="14,8" />
+        <!-- Title-bar buttons -->
+        <Style x:Key="TitleBarButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Width" Value="44"/>
+            <Setter Property="Height" Value="30"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="8">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Surface2}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.85"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
-
     </Window.Resources>
 
-    <DockPanel LastChildFill="True" Margin="18">
-        <StackPanel DockPanel.Dock="Top" Orientation="Vertical" Margin="0,0,0,14">
-            <TextBlock Text="Palette" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource Text}" />
-            <StackPanel Orientation="Horizontal" Margin="0,8,0,0" VerticalAlignment="Center">
-                <TextBlock Text="Mode:" VerticalAlignment="Center" Foreground="{DynamicResource Text2}" Margin="0,0,10,0"/>
-                <ComboBox Width="160" SelectedValue="{Binding PaletteMode, Mode=TwoWay}" SelectedValuePath="Content">
-                    <ComboBoxItem Content="Official"/>
-                    <ComboBoxItem Content="Custom"/>
-                </ComboBox>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="38"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
 
-                <TextBlock Text="Severity overlay:" VerticalAlignment="Center" Foreground="{DynamicResource Text2}" Margin="24,0,10,0"/>
-                <ToggleButton Style="{StaticResource DashToggleButton}" Content="Outline" IsChecked="{Binding ShowSeverityOutline, Mode=TwoWay}" Margin="0,0,10,0"/>
-                <ToggleButton Style="{StaticResource DashToggleButton}" Content="Glow" IsChecked="{Binding ShowSeverityGlow, Mode=TwoWay}" Margin="0,0,10,0"/>
-                <ToggleButton Style="{StaticResource DashToggleButton}" Content="Stripes" IsChecked="{Binding ShowSeverityStripes, Mode=TwoWay}"/>
+        <!-- Custom title bar -->
+        <Border Grid.Row="0" Background="{DynamicResource AppBg}" BorderBrush="{DynamicResource Border}" BorderThickness="0,0,0,1">
+            <DockPanel LastChildFill="True" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                <TextBlock Text="Map Styling" FontWeight="SemiBold" FontSize="13"
+                           Foreground="{DynamicResource Text}" VerticalAlignment="Center"
+                           Margin="12,0,0,0" />
+
+                <UniformGrid DockPanel.Dock="Right" Rows="1" Width="150" Margin="0,0,6,0" VerticalAlignment="Center" HorizontalAlignment="Right">
+                    <Button Style="{StaticResource TitleBarButton}" WindowChrome.IsHitTestVisibleInChrome="True" ToolTip="Minimize" Click="Minimize_OnClick">
+                        <TextBlock Text="—" FontSize="14" Foreground="{DynamicResource Text}" />
+                    </Button>
+                    <Button Style="{StaticResource TitleBarButton}" WindowChrome.IsHitTestVisibleInChrome="True" ToolTip="Maximize" Click="Maximize_OnClick">
+                        <TextBlock Text="□" FontSize="12" Foreground="{DynamicResource Text}" />
+                    </Button>
+                    <Button Style="{StaticResource TitleBarButton}" WindowChrome.IsHitTestVisibleInChrome="True" ToolTip="Close" Click="Close_OnClick">
+                        <TextBlock Text="✕" FontSize="13" Foreground="{DynamicResource Text}" />
+                    </Button>
+                </UniformGrid>
+            </DockPanel>
+        </Border>
+
+        <!-- Old-school menu bar (themed) -->
+        <Menu Grid.Row="1">
+            <MenuItem Header="_File">
+                <MenuItem Header="_Save" Click="Save_OnClick" InputGestureText="Ctrl+S"/>
+                <Separator/>
+                <MenuItem Header="_Close" Click="Close_OnClick" InputGestureText="Esc"/>
+            </MenuItem>
+            <MenuItem Header="_View">
+                <MenuItem Header="_Refresh" Click="Refresh_OnClick"/>
+            </MenuItem>
+            <MenuItem Header="_Tools">
+                <MenuItem Header="_Clear Custom Colors" Click="ClearCustom_OnClick"/>
+            </MenuItem>
+            <MenuItem Header="_Help">
+                <MenuItem Header="_About" Click="About_OnClick"/>
+            </MenuItem>
+        </Menu>
+
+        <!-- Content -->
+        <DockPanel Grid.Row="2" LastChildFill="True" Margin="18">
+            <StackPanel DockPanel.Dock="Top" Orientation="Vertical" Margin="0,0,0,14">
+                <TextBlock Text="Palette" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource Text}" />
+                <StackPanel Orientation="Horizontal" Margin="0,8,0,0" VerticalAlignment="Center">
+                    <TextBlock Text="Mode:" VerticalAlignment="Center" Foreground="{DynamicResource Text2}" Margin="0,0,10,0"/>
+                    <ComboBox Width="160" SelectedValue="{Binding PaletteMode, Mode=TwoWay}" SelectedValuePath="Content">
+                        <ComboBoxItem Content="Official"/>
+                        <ComboBoxItem Content="Custom"/>
+                    </ComboBox>
+
+                    <TextBlock Text="Severity overlay:" VerticalAlignment="Center" Foreground="{DynamicResource Text2}" Margin="24,0,10,0"/>
+                    <ToggleButton Style="{StaticResource DashToggleButton}" Content="Outline" IsChecked="{Binding ShowSeverityOutline, Mode=TwoWay}" Margin="0,0,10,0"/>
+                    <ToggleButton Style="{StaticResource DashToggleButton}" Content="Glow" IsChecked="{Binding ShowSeverityGlow, Mode=TwoWay}" Margin="0,0,10,0"/>
+                    <ToggleButton Style="{StaticResource DashToggleButton}" Content="Stripes" IsChecked="{Binding ShowSeverityStripes, Mode=TwoWay}"/>
+                </StackPanel>
+
+                <TextBlock Text="Custom colors: set a hex value like #FF0000. Leave blank to use the official color."
+                           Foreground="{DynamicResource Text2}" Margin="0,10,0,0"/>
             </StackPanel>
 
-            <TextBlock Text="Custom colors: set a hex value like #FF0000. Leave blank to use the official color."
-                       Foreground="{DynamicResource Text2}" Margin="0,10,0,0"/>
-        </StackPanel>
+            <DataGrid ItemsSource="{Binding Items}" AutoGenerateColumns="False" CanUserAddRows="False"
+                      HeadersVisibility="Column" GridLinesVisibility="Horizontal"
+                      Background="{DynamicResource Surface2}" BorderBrush="{DynamicResource Border}">
+                <DataGrid.Columns>
+    <DataGridTextColumn Header="Event" Binding="{Binding EventName}" IsReadOnly="True" Width="*"/>
 
-        <DataGrid ItemsSource="{Binding Items}" AutoGenerateColumns="False" CanUserAddRows="False"
-                  HeadersVisibility="Column" GridLinesVisibility="Horizontal"
-                  Background="{DynamicResource Surface2}" BorderBrush="{DynamicResource Border}">
-            <DataGrid.Columns>
-                <DataGridTextColumn Header="Event" Binding="{Binding EventName}" IsReadOnly="True" Width="*"/>
-                <DataGridTextColumn Header="Official" Binding="{Binding OfficialHex}" IsReadOnly="True" Width="160"/>
-                <DataGridTextColumn Header="Custom" Binding="{Binding CustomHex, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="160"/>
-            </DataGrid.Columns>
-        </DataGrid>
+    <DataGridTemplateColumn Header="" Width="42" IsReadOnly="True">
+        <DataGridTemplateColumn.CellTemplate>
+            <DataTemplate>
+                <Border Width="18" Height="18" CornerRadius="4" BorderBrush="{DynamicResource Border}" BorderThickness="1"
+                        Background="{Binding OfficialBrush}" />
+            </DataTemplate>
+        </DataGridTemplateColumn.CellTemplate>
+    </DataGridTemplateColumn>
 
-        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
-            <Button Content="Clear Custom" Padding="14,8" Margin="0,0,10,0" Click="ClearCustom_OnClick"/>
-            <Button Content="Save" Padding="14,8" Margin="0,0,10,0" Click="Save_OnClick"/>
-            <Button Content="Close" Padding="14,8" Click="Close_OnClick"/>
-        </StackPanel>
-    </DockPanel>
+    <DataGridTextColumn Header="Official" Binding="{Binding OfficialHex}" IsReadOnly="True" Width="140"/>
+
+    <DataGridTemplateColumn Header="" Width="42">
+        <DataGridTemplateColumn.CellTemplate>
+            <DataTemplate>
+                <Border Width="18" Height="18" CornerRadius="4" BorderBrush="{DynamicResource Border}" BorderThickness="1"
+                        Background="{Binding EffectiveCustomBrush}" />
+            </DataTemplate>
+        </DataGridTemplateColumn.CellTemplate>
+    </DataGridTemplateColumn>
+
+    <DataGridTemplateColumn Header="Custom" Width="240">
+        <DataGridTemplateColumn.CellTemplate>
+            <DataTemplate>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="8" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBox Grid.Column="0"
+                             Text="{Binding CustomHex, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             ToolTip="Leave blank to use official color. Format: #RRGGBB or #AARRGGBB" />
+
+                    <Button Grid.Column="2"
+                            Padding="10,6"
+                            Content="Pick…"
+                            Click="PickColor_OnClick" />
+                </Grid>
+            </DataTemplate>
+        </DataGridTemplateColumn.CellTemplate>
+    </DataGridTemplateColumn>
+</DataGrid.Columns>
+
+            </DataGrid>
+
+            <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
+                <Button Content="Clear Custom" Padding="14,8" Margin="0,0,10,0" Click="ClearCustom_OnClick"/>
+                <Button Content="Save" Padding="14,8" Margin="0,0,10,0" Click="Save_OnClick"/>
+                <Button Content="Close" Padding="14,8" Click="Close_OnClick"/>
+            </StackPanel>
+        </DockPanel>
+    </Grid>
 </Window>

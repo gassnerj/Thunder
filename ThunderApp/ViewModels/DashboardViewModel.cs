@@ -118,6 +118,8 @@ public partial class DashboardViewModel : ObservableObject
             _log.Log("Settings load failed: " + ex);
         }
 
+        OfficialHazardPaletteLoader.EnsureLoaded();
+
         HazardColorPalette.SetCustom(FilterSettings.HazardPaletteMode, FilterSettings.CustomHazardColors);
 
         BuildLifecycleGroups();
@@ -136,7 +138,9 @@ public partial class DashboardViewModel : ObservableObject
             if (e.PropertyName is nameof(AlertFilterSettings.HazardPaletteMode)
                 or nameof(AlertFilterSettings.CustomHazardColors))
             {
-                HazardColorPalette.SetCustom(FilterSettings.HazardPaletteMode, FilterSettings.CustomHazardColors);
+                OfficialHazardPaletteLoader.EnsureLoaded();
+
+        HazardColorPalette.SetCustom(FilterSettings.HazardPaletteMode, FilterSettings.CustomHazardColors);
             }
 
             // keep it cheap: only react to relevant properties

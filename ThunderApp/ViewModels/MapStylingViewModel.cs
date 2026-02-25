@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using ThunderApp.Models;
 using ThunderApp.Services;
@@ -14,6 +15,31 @@ public sealed partial class HazardColorItem : ObservableObject
     public string OfficialHex { get; }
 
     [ObservableProperty] private string? customHex;
+
+public Brush OfficialBrush => ToBrush(OfficialHex);
+
+public Brush EffectiveCustomBrush => ToBrush(string.IsNullOrWhiteSpace(CustomHex) ? OfficialHex : CustomHex!);
+
+public bool IsOfficialMissing => string.Equals(OfficialHex?.Trim(), "#A0A0A0", StringComparison.OrdinalIgnoreCase);
+
+partial void OnCustomHexChanged(string? value)
+{
+    OnPropertyChanged(nameof(EffectiveCustomBrush));
+}
+
+private static Brush ToBrush(string hex)
+{
+    try
+    {
+        // Supports #RRGGBB and #AARRGGBB
+        var c = (Color)ColorConverter.ConvertFromString(hex)!;
+        return new SolidColorBrush(c);
+    }
+    catch
+    {
+        return Brushes.Gray;
+    }
+}
 
     public HazardColorItem(string eventName, string officialHex, string? customHex)
     {
@@ -49,8 +75,35 @@ public sealed partial class MapStylingViewModel : ObservableObject
     public void RefreshItems()
     {
         Items.Clear();
-        foreach (var (name, officialHex, customHex) in HazardColorPalette.Snapshot())
-            Items.Add(new HazardColorItem(name, officialHex, customHex));
+
+        // Build a complete list:
+        // - all official hazard colors (weather.gov list)
+        // - all saved custom overrides
+        // - all alert event types Thunder already knows about (AlertCatalog)
+        var snap = HazardColorPalette.Snapshot();
+        var byName = new Dictionary<string, (string Official, string? Custom)>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var (name, officialHex, customHex) in snap)
+            byName[name] = (officialHex, customHex);
+
+        foreach (var def in AlertCatalog.All)
+        {
+            if (string.IsNullOrWhiteSpace(def.EventName)) continue;
+
+            if (!byName.ContainsKey(def.EventName))
+            {
+                // Use official if we have it; otherwise fall back to gray (still editable by Custom).
+                var off = HazardColorPalette.TryGetOfficialHex(def.EventName, out var oh) ? oh : "#A0A0A0";
+                var cus = HazardColorPalette.TryGetCustomHex(def.EventName, out var ch) ? ch : null;
+                byName[def.EventName] = (off, cus);
+            }
+        }
+
+        foreach (var k in byName.Keys.OrderBy(k => k))
+        {
+            var v = byName[k];
+            Items.Add(new HazardColorItem(k, v.Official, v.Custom));
+        }
     }
 
     public void SaveToSettings()

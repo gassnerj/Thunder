@@ -1,9 +1,19 @@
 ﻿<Window x:Class="ThunderApp.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:shell="http://schemas.microsoft.com/winfx/2006/xaml/presentation/shell"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:wpf="clr-namespace:LiveCharts.Wpf;assembly=LiveCharts.Wpf" xmlns:views="clr-namespace:ThunderApp.Views"
-        mc:Ignorable="d" Title="GPS Monitor" Width="1200" Height="780" WindowStartupLocation="CenterScreen">
+        mc:Ignorable="d" Title="GPS Monitor" Width="1200" Height="780" WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource AppBg}" WindowStyle="None" ResizeMode="CanResize">
+
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="38"
+                            ResizeBorderThickness="6"
+                            CornerRadius="0"
+                            GlassFrameThickness="0"
+                            UseAeroCaptionButtons="False" />
+    </WindowChrome.WindowChrome>
     <Window.Resources> <!-- Palette --> <SolidColorBrush x:Key="AppBg" Color="#0B0E14" />
         <SolidColorBrush x:Key="Surface" Color="#111827" /> <SolidColorBrush x:Key="Surface2" Color="#0F172A" />
         <SolidColorBrush x:Key="Border" Color="#253047" /> <SolidColorBrush x:Key="Text" Color="#E5E7EB" />
@@ -192,7 +202,41 @@
         <KeyBinding Command="ApplicationCommands.Properties" Key="M" Modifiers="Control" />
     </Window.InputBindings>
 
-    <DockPanel LastChildFill="True"> <!-- Menu --> <Menu DockPanel.Dock="Top" Padding="8,6">
+    <DockPanel LastChildFill="True">
+
+        <!-- Custom title bar (matches other windows) -->
+        <Border DockPanel.Dock="Top"
+                Height="38"
+                Background="{DynamicResource AppBg}"
+                BorderBrush="{DynamicResource Border}"
+                BorderThickness="0,0,0,1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition />
+                    <ColumnDefinition Width="150" />
+                </Grid.ColumnDefinitions>
+
+                <DockPanel Grid.Column="0" LastChildFill="True" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                    <TextBlock Text="Thunder" FontWeight="SemiBold" FontSize="13"
+                               Foreground="{DynamicResource Text}" VerticalAlignment="Center" Margin="12,0,0,0" />
+                </DockPanel>
+
+                <UniformGrid Grid.Column="1" Rows="1" Width="150" HorizontalAlignment="Right" Margin="0,0,6,0" VerticalAlignment="Center">
+                    <Button Style="{StaticResource TitleBarButton}" WindowChrome.IsHitTestVisibleInChrome="True" ToolTip="Minimize" Click="Minimize_OnClick">
+                        <TextBlock Text="—" FontSize="14" Foreground="{DynamicResource Text}"/>
+                    </Button>
+                    <Button Style="{StaticResource TitleBarButton}" WindowChrome.IsHitTestVisibleInChrome="True" ToolTip="Maximize" Click="Maximize_OnClick">
+                        <TextBlock Text="□" FontSize="12" Foreground="{DynamicResource Text}"/>
+                    </Button>
+                    <Button Style="{StaticResource TitleBarButton}" WindowChrome.IsHitTestVisibleInChrome="True" ToolTip="Close" Click="Close_OnClick">
+                        <TextBlock Text="✕" FontSize="12" Foreground="{DynamicResource Text}"/>
+                    </Button>
+                </UniformGrid>
+            </Grid>
+        </Border>
+
+        <!-- Menu -->
+        <Menu DockPanel.Dock="Top" Padding="8,6">
             <MenuItem Header="_File" />
             <MenuItem Header="_View">
                 <MenuItem Header="Alert _Filters..." Command="ApplicationCommands.Find" InputGestureText="Ctrl+F" />
@@ -200,11 +244,17 @@
             </MenuItem>
             <MenuItem Header="_Tools" />
             <MenuItem Header="_Help" />
-        </Menu> <!-- Status --> <StatusBar DockPanel.Dock="Bottom">
+        </Menu>
+
+        <!-- Status -->
+        <StatusBar DockPanel.Dock="Bottom">
             <StatusBarItem>
                 <TextBlock x:Name="StatusBarItem" Text="Ready" />
             </StatusBarItem>
-        </StatusBar> <!-- Tabs --> <TabControl Style="{StaticResource MainTabs}">
+        </StatusBar>
+
+        <!-- Tabs -->
+        <TabControl Style="{StaticResource MainTabs}">
             <TabItem Header="Dashboard">
                 <views:DashboardView x:Name="Dashboard" />
             </TabItem>
