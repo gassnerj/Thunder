@@ -77,10 +77,12 @@
     <!-- Floating radar controls (shown only when radar is enabled) -->
     <div id="radarOverlay" class="radar-overlay hidden" aria-hidden="true">
         <div class="radar-bar">
+            <button class="radar-btn" data-act="start" title="Go to oldest frame">⏮</button>
             <button class="radar-btn" data-act="rew" title="Rewind">⏪</button>
             <button class="radar-btn" data-act="play" title="Play">▶</button>
             <button class="radar-btn" data-act="pause" title="Pause">⏸</button>
             <button class="radar-btn" data-act="fwd" title="Forward">⏩</button>
+            <button class="radar-btn" data-act="end" title="Go to newest frame">⏭</button>
 
             <div class="radar-text">
                 <div id="radarFrameStamp" class="radar-line"></div>
@@ -96,7 +98,12 @@ let alertsOpacityFactor = 1.0;
 let spcOpacityFactor = 1.0;
 function __clamp01(x){ x=parseFloat(x); if(isNaN(x)) return 1.0; return Math.max(0.0, Math.min(1.0, x)); }
 window.setAlertsOpacity = function(v){ alertsOpacityFactor = __clamp01(v); if(window.alertLayer){ window.alertLayer.setStyle(alertStyle);} };
-window.setSpcOpacity = function(v){ spcOpacityFactor = __clamp01(v); if(window.spcLayerD1){ window.spcLayerD1.setStyle(spcStyle);} if(window.spcLayerD2){ window.spcLayerD2.setStyle(spcStyle);} if(window.spcLayerD3){ window.spcLayerD3.setStyle(spcStyle);} };
+window.setSpcOpacity = function(v){
+    spcOpacityFactor = __clamp01(v);
+    if (window.spc && window.spc.layers) {
+        Object.values(window.spc.layers).forEach(lyr => { try { lyr.setStyle(spcStyle); } catch {} });
+    }
+};
 
 
     // =======================
@@ -308,6 +315,50 @@ window.setSpcOpacity = function(v){ spcOpacityFactor = __clamp01(v); if(window.s
         }
     };
 
+
+    // =======================
+    // Weather stations (ASOS)
+    // =======================
+    const wxStations = {
+        layer: L.layerGroup().addTo(map),
+        byId: new Map(),
+        activeId: null
+    };
+
+    function formatObsPopup(st) {
+        const obs = st?.observation;
+        if (!obs) return '<div style="font-size:12px;color:#cbd5e1">No current observation</div>';
+        const f = (v, d=1) => (typeof v === 'number' && Number.isFinite(v)) ? Number(v).toFixed(d) : '--';
+        const rh = (typeof obs.rh === 'number' && Number.isFinite(obs.rh)) ? `${Math.round(obs.rh)}%` : '--';
+        return `<div style="font-size:12px;line-height:1.35"><div><b>Temp:</b> ${f(obs.tempF)} °F</div><div><b>Dew Point:</b> ${f(obs.dewF)} °F</div><div><b>RH:</b> ${rh}</div><div><b>Wind:</b> ${f(obs.windMph)} mph ${obs.windDir || ''}</div><div><b>Obs Time:</b> ${obs.timestamp ? new Date(obs.timestamp).toLocaleString() : '--'}</div></div>`;
+    }
+
+    window.setWeatherStations = function(payload) {
+        if (!payload || !Array.isArray(payload.stations)) return;
+
+        wxStations.layer.clearLayers();
+        wxStations.byId.clear();
+        wxStations.activeId = payload.activeStationId || null;
+
+        for (const st of payload.stations) {
+            if (typeof st?.lat !== 'number' || typeof st?.lon !== 'number') continue;
+            const isActive = !!st.isActive;
+            const marker = L.circleMarker([st.lat, st.lon], {
+                radius: isActive ? 7 : 5,
+                weight: isActive ? 2 : 1,
+                color: isActive ? '#f97316' : '#38bdf8',
+                fillColor: isActive ? '#fb923c' : '#7dd3fc',
+                fillOpacity: isActive ? 0.95 : 0.75,
+                opacity: 0.95
+            });
+
+            const title = `<div style="font-weight:600">${st.id || 'Station'} — ${st.name || ''}</div><div style="font-size:12px;color:#94a3b8">${st.timeZone || ''}</div>`;
+            marker.bindPopup(`<div style="min-width:280px;max-width:420px">${title}${formatObsPopup(st)}</div>`);
+            marker.addTo(wxStations.layer);
+            if (st.id) wxStations.byId.set(st.id, marker);
+        }
+    };
+
     // =======================
     // Disable follow on user movement
     // =======================
@@ -379,10 +430,12 @@ window.setSpcOpacity = function(v){ spcOpacityFactor = __clamp01(v); if(window.s
         overlayEl.addEventListener('click', (e) => {
             const act = e.target?.getAttribute?.('data-act');
             if (!act) return;
+            if (act === 'start') first();
             if (act === 'rew') prev();
             if (act === 'play') play();
             if (act === 'pause') pause();
             if (act === 'fwd') next();
+            if (act === 'end') latest();
         });
     }
 
@@ -434,13 +487,36 @@ window.setSpcOpacity = function(v){ spcOpacityFactor = __clamp01(v); if(window.s
     function next() { if (layers.length) show(idx + 1); }
     function prev() { if (layers.length) show(idx - 1); }
 
+    function first() {
+        if (!layers.length) return;
+        for (let i = 0; i < layers.length; i++) {
+            if (ready[i]) { show(i); return; }
+        }
+    }
+
+    function latest() {
+        if (!layers.length) return;
+        for (let i = layers.length - 1; i >= 0; i--) {
+            if (ready[i]) { show(i); return; }
+        }
+    }
+
     function play() {
         if (timer || layers.length < 2) return;
 
-        // If current isn't ready, jump to first ready.
+        // If current isn't ready, jump to newest ready frame.
         if (!ready[idx]) {
-            const first = ready.findIndex(x => x);
-            if (first >= 0) idx = first;
+            for (let i = ready.length - 1; i >= 0; i--) {
+                if (ready[i]) { idx = i; break; }
+            }
+        }
+
+        // When already at newest frame, start one step back so the next tick advances
+        // forward instead of wrapping to the oldest frame.
+        if (idx >= layers.length - 1 && layers.length > 1) {
+            for (let i = layers.length - 2; i >= 0; i--) {
+                if (ready[i]) { idx = i; break; }
+            }
         }
 
         timer = setInterval(() => {
@@ -472,8 +548,6 @@ window.setSpcOpacity = function(v){ spcOpacityFactor = __clamp01(v); if(window.s
             frames.push(new Date(now.getTime() - i * FRAME_MINUTES * 60 * 1000));
         }
 
-        const keepTs = frames[idx] ? frames[idx].getTime() : null;
-
         clearLayers();
 
         // Build + preload layers. We add them all at opacity 0 so tiles fetch immediately,
@@ -493,9 +567,21 @@ window.setSpcOpacity = function(v){ spcOpacityFactor = __clamp01(v); if(window.s
                 // First time anything loads, show something immediately.
                 if (visibleIdx < 0) {
                     if (ready[newIdx]) show(newIdx);
-                    else show(i);
+                    else latest();
 
                     if (wasPlaying) setTimeout(() => play(), 50);
+                    return;
+                }
+
+                // While paused (or before playback resumes), always drift forward to the
+                // newest ready frame as tiles finish loading so refreshes don't appear to go backward.
+                if (!timer) {
+                    if (i >= idx) {
+                        show(i);
+                    }
+                    else if (i === newIdx) {
+                        show(i);
+                    }
                 }
             });
 
@@ -504,12 +590,8 @@ window.setSpcOpacity = function(v){ spcOpacityFactor = __clamp01(v); if(window.s
 
         ready = new Array(layers.length).fill(false);
 
-        // Best-effort keep index
-        let newIdx = 0;
-        if (keepTs != null) {
-            const found = frames.findIndex(x => x.getTime() === keepTs);
-            if (found >= 0) newIdx = found;
-        }
+        // Start at newest frame by default.
+        let newIdx = Math.max(0, frames.length - 1);
 
         // Add all layers to force tile fetch / cache (opacity 0)
         for (const l of layers) {
@@ -577,6 +659,8 @@ window.setSpcOpacity = function(v){ spcOpacityFactor = __clamp01(v); if(window.s
         setSpeed,
         next,
         prev,
+        first,
+        latest,
         play,
         pause
     };
@@ -616,11 +700,34 @@ window.setSpcOpacity = function(v){ spcOpacityFactor = __clamp01(v); if(window.s
         enabled: { day1: false, day2: false, day3: false }
     };
 
+    window.spc = spc;
+
     const spcUrls = {
         day1: "https://www.spc.noaa.gov/products/outlook/day1otlk_cat.nolyr.geojson",
         day2: "https://www.spc.noaa.gov/products/outlook/day2otlk_cat.nolyr.geojson",
         day3: "https://www.spc.noaa.gov/products/outlook/day3otlk_cat.nolyr.geojson"
     };
+
+    const spcTextUrls = {
+        day1: "https://www.spc.noaa.gov/products/outlook/day1otlk.txt",
+        day2: "https://www.spc.noaa.gov/products/outlook/day2otlk.txt",
+        day3: "https://www.spc.noaa.gov/products/outlook/day3otlk.txt"
+    };
+
+    const spcTextCache = {};
+
+    async function getSpcText(dayKey) {
+        if (spcTextCache[dayKey]) return spcTextCache[dayKey];
+        try {
+            const resp = await fetch(spcTextUrls[dayKey]);
+            if (!resp.ok) throw new Error("SPC text fetch failed");
+            const txt = await resp.text();
+            spcTextCache[dayKey] = txt;
+            return txt;
+        } catch {
+            return "SPC text unavailable.";
+        }
+    }
 
     function spcStyle(feature) {
         const p = feature?.properties || {};
@@ -642,11 +749,12 @@ window.setSpcOpacity = function(v){ spcOpacityFactor = __clamp01(v); if(window.s
         if (label.includes("HIGH"))                               color = "#D53F8C";
 
         let weight = 2;
-        let fillOpacity = 0.12;
-        if (label.includes("MDT") || label.includes("MODERATE")) fillOpacity = 0.16;
-        if (label.includes("HIGH")) fillOpacity = 0.20;
+        let fillOpacity = 0.28;
+        if (label.includes("MDT") || label.includes("MODERATE")) fillOpacity = 0.34;
+        if (label.includes("HIGH")) fillOpacity = 0.42;
 
-        return { color, fillColor: color, weight, opacity: 0.95 * spcOpacityFactor, fillOpacity };
+        fillOpacity = Math.max(0.04, Math.min(0.85, fillOpacity * spcOpacityFactor));
+        return { color, fillColor: color, weight, opacity: 0.98 * spcOpacityFactor, fillOpacity };
     }
 
     async function ensureSpcLayer(dayKey) {
@@ -662,7 +770,15 @@ window.setSpcOpacity = function(v){ spcOpacityFactor = __clamp01(v); if(window.s
             onEachFeature: (feature, lyr) => {
                 const p = feature?.properties || {};
                 const label = (p.LABEL || p.label || p.RISK || p.risk || "SPC Outlook");
-                lyr.bindTooltip(label, { sticky: true });
+                lyr.on('click', async (ev) => {
+                    const raw = await getSpcText(dayKey);
+                    const text = raw.length > 1800 ? `${raw.slice(0, 1800)}
+
+…` : raw;
+                    const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                    const html = `<div style="width:820px;max-width:86vw"><div style="font-weight:600;margin-bottom:6px">${esc(dayKey.toUpperCase())} • ${esc(label)}</div><pre style="white-space:pre-wrap;max-height:420px;overflow:auto;margin:0">${esc(text)}</pre></div>`;
+                    L.popup({ maxWidth: 900, minWidth: 640 }).setLatLng(ev.latlng).setContent(html).openOn(map);
+                });
             }
         });
 
