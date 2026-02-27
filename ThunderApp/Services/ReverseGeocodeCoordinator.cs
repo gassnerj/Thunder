@@ -71,6 +71,10 @@ public sealed class ReverseGeocodeCoordinator : ILocationOverlayService
 
         _latestPendingPoint = gps;
 
+        // Coalesce bursts without starving under continuous high-frequency GPS updates.
+        if (_debounceTask is { IsCompleted: false })
+            return;
+
         _debounceCts?.Cancel();
         _debounceCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         var token = _debounceCts.Token;
@@ -192,9 +196,10 @@ public sealed class ReverseGeocodeCoordinator : ILocationOverlayService
                     {
                         string id = c.TryGetProperty("id", out var idEl) ? idEl.GetString() ?? "" : "";
                         string tx = c.TryGetProperty("text", out var txEl) ? txEl.GetString() ?? "" : "";
+                        string shortCode = c.TryGetProperty("short_code", out var sc) ? sc.GetString() ?? "" : "";
 
                         if (string.IsNullOrWhiteSpace(city) && id.StartsWith("place.")) city = tx;
-                        if (string.IsNullOrWhiteSpace(state) && id.StartsWith("region.")) state = AbbrevState(tx);
+                        if (string.IsNullOrWhiteSpace(state) && id.StartsWith("region.")) state = AbbrevState(!string.IsNullOrWhiteSpace(shortCode) ? shortCode : tx);
                     }
                 }
             }
@@ -229,8 +234,8 @@ public sealed class ReverseGeocodeCoordinator : ILocationOverlayService
             if (!doc.RootElement.TryGetProperty("address", out var addr) || addr.ValueKind != JsonValueKind.Object)
                 return null;
 
-            string road = Read(addr, "road") ?? Read(addr, "highway") ?? "";
-            string city = Read(addr, "city") ?? Read(addr, "town") ?? Read(addr, "village") ?? "";
+            string road = Read(addr, "highway") ?? Read(addr, "road") ?? Read(addr, "route") ?? Read(addr, "pedestrian") ?? Read(addr, "footway") ?? "";
+            string city = Read(addr, "city") ?? Read(addr, "town") ?? Read(addr, "village") ?? Read(addr, "municipality") ?? Read(addr, "county") ?? "";
             string state = AbbrevState(Read(addr, "state") ?? "");
 
             double? placeLat = doc.RootElement.TryGetProperty("lat", out var l1) && double.TryParse(l1.GetString(), NumberStyles.Any, CultureInfo.InvariantCulture, out var pLat) ? pLat : null;
@@ -249,6 +254,9 @@ public sealed class ReverseGeocodeCoordinator : ILocationOverlayService
     private static string AbbrevState(string state)
     {
         if (string.IsNullOrWhiteSpace(state)) return "";
+        state = state.Trim();
+        if (state.StartsWith("us-", StringComparison.OrdinalIgnoreCase) && state.Length == 5)
+            state = state.Substring(3);
         return state.Length == 2 ? state.ToUpperInvariant() : state;
     }
 
