@@ -50,25 +50,7 @@ namespace ThunderApp
         private CancellationTokenSource? _wxStreamCts;
         private Task? _wxStreamTask;
         private ThunderApp.Models.GeoPoint? _wxStreamAnchor;
-        private int _wxConsecutiveFailures;
-        private DateTime _wxBackoffUntilUtc = DateTime.MinValue;
 
-
-        private static TimeSpan ComputeWxBackoff(int failures, bool isForbidden)
-        {
-            int exp = Math.Min(6, Math.Max(0, failures - 1));
-            int seconds = (int)Math.Pow(2, exp); // 1,2,4,8,16,32,64
-            if (isForbidden)
-                seconds = Math.Max(15, seconds);
-
-            return TimeSpan.FromSeconds(Math.Min(120, seconds));
-        }
-
-        private void ResetWxBackoff()
-        {
-            _wxConsecutiveFailures = 0;
-            _wxBackoffUntilUtc = DateTime.MinValue;
-        }
 
         private enum PressureDisplayUnit { InHg, HPa, Pa }
         private PressureDisplayUnit _pressureUnit = PressureDisplayUnit.InHg;
@@ -413,7 +395,7 @@ namespace ThunderApp
         }
 
 
-        private string FormatTemperature(MeteorologyCore.Temperature? t)
+        private string FormatTemperature(MeteorologyCore.ITemperature? t)
         {
             if (ConvertTemperatureValue(t) is not double value) return "--";
             return _unitSettings.TemperatureUnit == TemperatureUnit.Celsius
@@ -421,7 +403,7 @@ namespace ThunderApp
                 : $"{value:0.0} °F";
         }
 
-        private double? ConvertTemperatureValue(MeteorologyCore.Temperature? t)
+        private double? ConvertTemperatureValue(MeteorologyCore.ITemperature? t)
         {
             if (t?.Value is not double c) return null;
             return _unitSettings.TemperatureUnit == TemperatureUnit.Celsius ? c : t.ToFahrenheit().Value;
