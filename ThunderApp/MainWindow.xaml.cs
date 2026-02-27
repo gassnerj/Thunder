@@ -45,6 +45,11 @@ namespace ThunderApp
         private List<double> dewPointData = null!;
         private List<double> windData = null!;
 
+        // Weather station streaming (nearest station to current location).
+        private CancellationTokenSource? _wxStreamCts;
+        private Task? _wxStreamTask;
+        private ThunderApp.Models.GeoPoint? _wxStreamAnchor;
+
         public MainWindow()
         {
             InitializeComponent();
@@ -92,6 +97,8 @@ namespace ThunderApp
             var alerts = new NwsAlertsService("ThunderApp");
             var gps = new GpsService();
             var log = new DiskLogService();
+            GeoJsonWeather.Api.WebData.Logger = msg => log.Log(msg);
+            log.Info("MainWindow: logging initialized");
             var settings = new JsonSettingsService<AlertFilterSettings>("alertFilters.json");
 
             // Shared HTTP + cache for NWS/SPC helpers.
@@ -134,7 +141,9 @@ namespace ThunderApp
 
             var gpsTimer    = new PeriodicTimer(TimeSpan.FromMinutes(1));
             var screenTimer = new PeriodicTimer(TimeSpan.FromSeconds(1));
-            var apiTimer = new PeriodicTimer(TimeSpan.FromMinutes(1));
+
+            // Weather station updates run as a continuous stream and restart when your location moves.
+            _ = Task.Run(() => RunNearestWeatherStationStreamAsync(ct), ct);
             
             Task screenLoop = Task.Run(async () =>
             {
@@ -153,34 +162,157 @@ namespace ThunderApp
                         await UpdateLocation(_vmixLocation);
             }, ct);
 
-            Task apiLoop = Task.Run(async () =>
+            await Task.CompletedTask; // loops run until ct is cancelled
+        }
+
+        private ThunderApp.Models.GeoPoint? GetBestCurrentLocation()
+        {
+            // Prefer the app's unified location (GPS or manual).
+            if (_dashboardVm?.CurrentLocation is ThunderApp.Models.GeoPoint p)
+                return p;
+
+            // If the VM exists but hasn't published CurrentLocation yet, fall back to its manual center.
+            // This fixes the "all blank" weather station at startup when no GPS puck is connected.
+            if (_dashboardVm?.FilterSettings is not null)
             {
-                while (await apiTimer.WaitForNextTickAsync(ct))
+                double lat = _dashboardVm.FilterSettings.ManualLat;
+                double lon = _dashboardVm.FilterSettings.ManualLon;
+                if (System.Math.Abs(lat) > 0.0001 && System.Math.Abs(lon) > 0.0001)
+                    return new ThunderApp.Models.GeoPoint(lat, lon);
+            }
+
+            // Fallback to last GPS fix if VM isn't ready yet.
+            if (NMEA is not null && NMEA.Status == "Valid Fix")
+                return new ThunderApp.Models.GeoPoint(NMEA.Latitude, NMEA.Longitude);
+
+            return null;
+        }
+
+        private static double KmToMiles(double km) => km * 0.621371;
+
+        private static double DistanceMiles(ThunderApp.Models.GeoPoint a, ThunderApp.Models.GeoPoint b)
+        {
+            double km = GeoJsonWeather.GeoHelper.CalculateHaversineDistance(a.Lat, a.Lon, b.Lat, b.Lon);
+            return KmToMiles(km);
+        }
+
+        private async Task RunNearestWeatherStationStreamAsync(CancellationToken appCt)
+        {
+            // Restart the observation stream if you move this far.
+            const double restartMiles = 10;
+
+            DiskLogService.Current?.Log("WX: stream supervisor started");
+            while (!appCt.IsCancellationRequested)
+            {
+                try
                 {
-                    await foreach (ObservationModel? model in ObservationManager.GetNearestObservations(33.9595, -98.6812, ct))
+                    var loc = GetBestCurrentLocation();
+                    if (loc is null)
                     {
-                        if (model is null)
-                            break;
-                        Dispatcher.Invoke(() =>
+                        DiskLogService.Current?.Log("WX: no location yet (GPS/manual)");
+                        await Task.Delay(500, appCt);
+                        continue;
+                    }
+
+                    bool needRestart = _wxStreamTask == null || _wxStreamTask.IsCompleted;
+                    if (!needRestart && _wxStreamAnchor is not null)
+                    {
+                        var moved = DistanceMiles(_wxStreamAnchor.Value, loc.Value);
+                        if (moved >= restartMiles)
+                            needRestart = true;
+                    }
+
+                    if (needRestart)
+                    {
+                        try { _wxStreamCts?.Cancel(); } catch { }
+                        _wxStreamCts?.Dispose();
+
+                        _wxStreamCts = CancellationTokenSource.CreateLinkedTokenSource(appCt);
+                        _wxStreamAnchor = loc;
+
+                        _wxStreamTask = Task.Run(() => ConsumeObservationStreamAsync(loc.Value, _wxStreamCts.Token), _wxStreamCts.Token);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    DiskLogService.Current?.Log("WX: supervisor loop error");
+                    DiskLogService.Current?.LogException("WX supervisor", ex);
+                }
+
+                try { await Task.Delay(1000, appCt); } catch { }
+            }
+        }
+
+        private bool _wxLoggedFirstObs;
+
+        private async Task ConsumeObservationStreamAsync(ThunderApp.Models.GeoPoint loc, CancellationToken ct)
+        {
+            try
+            {
+                DiskLogService.Current?.Log($"WX: ConsumeObservationStreamAsync start loc={loc.Lat:0.0000},{loc.Lon:0.0000}");
+                await foreach (ObservationModel? model in ObservationManager.GetNearestObservations(loc.Lat, loc.Lon, ct))
+                {
+                    if (ct.IsCancellationRequested) break;
+                    if (model is null) continue;
+
+                    if (!_wxLoggedFirstObs)
+                    {
+                        _wxLoggedFirstObs = true;
+                        DiskLogService.Current?.Log($"WX: first obs ts={model.Timestamp:o} tempC={model.Temperature.Value} dpC={model.DewPoint.Value}");
+                    }
+
+                    // Never block the UI thread: BeginInvoke instead of Invoke.
+                    Dispatcher.BeginInvoke(new Action(() =>
+                    {
+                        try
                         {
                             AirTemperature.Text = model.Temperature.ToFahrenheit().ToString();
-                            DewPoint.Text       = model.Temperature.ToFahrenheit().ToString();
-                            Wind.Text           = $"{Math.Round(model.Wind.Speed)} ({model.Wind.Direction})";
-                            LastUpdate.Text     = DateTime.Now.ToString(CultureInfo.CurrentCulture);
+                            DewPoint.Text = model.DewPoint.ToFahrenheit().ToString();
 
-                            temperatureData.Add(model.Temperature.ToFahrenheit().Value);
-                            dewPointData.Add(model.Temperature.ToFahrenheit().Value);
-                            windData.Add(model.Wind.Speed);
-                            
+                            // Wind can be missing in some obs payloads.
+                            if (model.Wind is not null)
+                                Wind.Text = $"{Math.Round(model.Wind.Speed)} ({model.Wind.Direction})";
+                            else
+                                Wind.Text = "--";
+
+                            LastUpdate.Text = model.Timestamp.ToLocalTime().ToString(CultureInfo.CurrentCulture);
+
+                            if (model.Temperature.ToFahrenheit().Value is double t)
+                                temperatureData.Add(t);
+                            if (model.DewPoint.ToFahrenheit().Value is double d)
+                                dewPointData.Add(d);
+
+                            if (model.Wind is not null)
+                                windData.Add(model.Wind.Speed);
+
                             _seriesCollection[0].Values = new ChartValues<double>(temperatureData);
                             _seriesCollection[1].Values = new ChartValues<double>(dewPointData);
                             _seriesCollection[2].Values = new ChartValues<double>(windData);
-                        });
-                    }
+                        }
+                        catch
+                        {
+                            // ignore UI update issues
+                        }
+                    }), DispatcherPriority.Background);
                 }
-            }, ct);
+            }
+            catch (Exception ex)
+            {
+                // If the stream dies early (points/zone/station fetch), surface it.
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    try
+                    {
+                        AirTemperature.Text = "--";
+                        DewPoint.Text = "--";
+                        Wind.Text = "--";
+                        LastUpdate.Text = "WX error";
+                    }
+                    catch { }
+                }));
 
-            await Task.CompletedTask; // loops run until ct is cancelled
+                DiskLogService.Current?.LogException("WX stream", ex);
+            }
         }
 
         private void InitializeGPS()

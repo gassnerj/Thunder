@@ -5,13 +5,14 @@ namespace GeoJsonWeather.Api;
 
 public class ApiFetcher : ApiRetrieverBase
 {
-    private readonly string _userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:97.0) Gecko/20100101 Firefox/97.0";
+    // Keep a non-empty, NWS-compliant default UA.
+    private readonly string _userAgent = NwsDefaults.UserAgent;
     private readonly string _url;
 
     public ApiFetcher(string userAgent, string url) : base(url, userAgent)
     {
         _url = url;
-        if (!string.IsNullOrEmpty(userAgent))
+        if (!string.IsNullOrWhiteSpace(userAgent))
         {
             _userAgent = userAgent;
         }

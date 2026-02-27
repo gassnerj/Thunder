@@ -123,6 +123,7 @@ namespace ThunderApp.Views
                 {
                     if (args.PropertyName is nameof(AlertFilterSettings.UseRadiusFilter)
                         or nameof(AlertFilterSettings.RadiusMiles)
+                        or nameof(AlertFilterSettings.ShowRadiusCircle)
                         or nameof(AlertFilterSettings.UseNearMe)
                         or nameof(AlertFilterSettings.ManualLat)
                         or nameof(AlertFilterSettings.ManualLon))
@@ -197,6 +198,17 @@ namespace ThunderApp.Views
                 await MapView.CoreWebView2.ExecuteScriptAsync($"setSeverityOutline({(_vm.FilterSettings.ShowSeverityOutline ? "true" : "false")});");
                 await MapView.CoreWebView2.ExecuteScriptAsync($"setSeverityGlow({(_vm.FilterSettings.ShowSeverityGlow ? "true" : "false")});");
                 await MapView.CoreWebView2.ExecuteScriptAsync($"setSeverityStripes({(_vm.FilterSettings.ShowSeverityStripes ? "true" : "false")});");
+            }
+            catch { }
+
+
+            // Layer opacity
+            try
+            {
+                double a = Math.Clamp(_vm.FilterSettings.AlertsOpacityPercent / 100.0, 0.0, 1.0);
+                double s = Math.Clamp(_vm.FilterSettings.SpcOpacityPercent / 100.0, 0.0, 1.0);
+                await MapView.CoreWebView2.ExecuteScriptAsync($"setAlertsOpacity({a.ToString(System.Globalization.CultureInfo.InvariantCulture)});");
+                await MapView.CoreWebView2.ExecuteScriptAsync($"setSpcOpacity({s.ToString(System.Globalization.CultureInfo.InvariantCulture)});");
             }
             catch { }
         }
@@ -614,6 +626,13 @@ private void ApplySavedAlertsMapSplit()
         {
             if (!_mapReady || MapView?.CoreWebView2 == null) return;
             await MapView.CoreWebView2.ExecuteScriptAsync("setRadarEnabled(true);");
+            try
+            {
+                int n = (int)Math.Round(RadarFramesSlider?.Value ?? 10);
+                await MapView.CoreWebView2.ExecuteScriptAsync($"window.radar && radar.setFrameCount({n});");
+            }
+            catch { }
+
         }
 
         private async void Radar_Unchecked(object sender, RoutedEventArgs e)
@@ -622,6 +641,15 @@ private void ApplySavedAlertsMapSplit()
             await MapView.CoreWebView2.ExecuteScriptAsync("setRadarEnabled(false);");
         }
 
+
+private async void RadarFrames_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+{
+    if (!_mapReady || MapView?.CoreWebView2 == null) return;
+
+    // Avoid spamming JS while the control is initializing.
+    int n = (int)Math.Round(e.NewValue);
+    await MapView.CoreWebView2.ExecuteScriptAsync($"window.radar && radar.setFrameCount({n});");
+}
         private async void UpdateMap_OnClick(object sender, RoutedEventArgs e)
         {
             if (!_mapReady) return;
@@ -681,7 +709,8 @@ private void ApplySavedAlertsMapSplit()
             _vm ??= DataContext as DashboardViewModel;
             if (_vm == null) return;
 
-            bool enabled = _vm.FilterSettings.UseRadiusFilter;
+            // Display-only toggle (do NOT tie this to filtering behavior)
+            bool enabled = _vm.FilterSettings.ShowRadiusCircle;
             double miles = _vm.FilterSettings.RadiusMiles;
 
             // Center circle on GPS if available, otherwise manual.

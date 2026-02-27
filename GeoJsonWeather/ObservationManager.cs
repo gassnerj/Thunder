@@ -19,13 +19,17 @@ public class ObservationManager
     {
         var pointsUrl = $"https://api.weather.gov/points/{latitude},{longitude}";
 
+        WebData.Logger?.Invoke($"WX points url={pointsUrl}");
+
         var pointsMgr = new ApiManager(new ApiFetcher(string.Empty, pointsUrl));
         ForecastPointModel? point = await pointsMgr.GetModelAsync(new ForecastPointParser(), ct);
+        WebData.Logger?.Invoke(point is null ? "WX points: null" : $"WX points OK zoneUrl={point.ZoneUrl}");
         if (point is null || string.IsNullOrWhiteSpace(point.ZoneUrl))
             yield break;
 
         var zoneMgr = new ApiManager(new ApiFetcher(string.Empty, point.ZoneUrl));
         ForecastZoneModel? zone = await zoneMgr.GetModelAsync(new ForecastZoneParser(), ct);
+        WebData.Logger?.Invoke(zone is null ? "WX zone: null" : $"WX zone OK stations={zone.ObservationStationUrls?.Count ?? 0}");
         if (zone?.ObservationStationUrls is null || zone.ObservationStationUrls.Count == 0)
             yield break;
 
@@ -38,6 +42,7 @@ public class ObservationManager
 
             var stationMgr = new ApiManager(new ApiFetcher(string.Empty, stationUrl));
             ObservationStationModel? station = await stationMgr.GetModelAsync(new ObservationStationParser(), ct);
+            if (station != null) WebData.Logger?.Invoke($"WX station OK id={station.StationIdentifier} name={station.Name}");
             if (station != null) stations.Add(station);
         }
 
@@ -52,6 +57,7 @@ public class ObservationManager
             var obsUrl = $"https://api.weather.gov/stations/{nearest.StationIdentifier}/observations/latest";
 
             ObservationModel? obs = null;
+            WebData.Logger?.Invoke($"WX obs latest url={obsUrl}");
             try
             {
                 var obsMgr = new ApiManager(new ApiFetcher(string.Empty, obsUrl));

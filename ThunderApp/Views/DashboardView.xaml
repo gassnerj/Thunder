@@ -417,6 +417,11 @@
                           IsChecked="{Binding FilterSettings.UseRadiusFilter}"
                           Margin="0,0,0,8" />
 
+                <CheckBox Content="Show radius ring"
+                          Style="{StaticResource WfSwitch}"
+                          IsChecked="{Binding FilterSettings.ShowRadiusCircle}"
+                          Margin="0,0,0,8" />
+
                 <Grid Margin="0,0,0,12">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
@@ -534,6 +539,18 @@
                                   Unchecked="Radar_Unchecked"
                                   Margin="0,0,0,0" />
                 </UniformGrid>
+
+                <!-- Radar animation controls (only visible when Radar is on) -->
+                <StackPanel Margin="0,10,0,0"
+                            Visibility="{Binding ElementName=RadarToggle, Path=IsChecked, Converter={StaticResource BoolToVis}}">
+                    <DockPanel>
+                        <TextBlock Style="{StaticResource DashMuted}" Text="Radar frames" />
+                        <TextBlock Style="{StaticResource DashMuted}" DockPanel.Dock="Right" Text="{Binding ElementName=RadarFramesSlider, Path=Value, StringFormat={}{0:0}}" />
+                    </DockPanel>
+                    <Slider x:Name="RadarFramesSlider" Minimum="1" Maximum="30" Value="10" IsSnapToTickEnabled="True" TickFrequency="1"
+                            ValueChanged="RadarFrames_ValueChanged" />
+                </StackPanel>
+
 
                 <TextBlock Style="{StaticResource DashMuted}"
                            Text="{Binding StatusText}"

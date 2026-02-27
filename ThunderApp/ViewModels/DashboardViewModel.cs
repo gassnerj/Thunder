@@ -165,7 +165,9 @@ public partial class DashboardViewModel : ObservableObject
         RefreshLifecycleGroupVisibilityFromCategory();
 
         // Start background refresh loops.
-        _ = RunAutoRefreshLoopsAsync(_autoRefreshCts.Token);
+        _log.Info("AutoRefreshLoops started");
+
+        _ = Task.Run(() => RunAutoRefreshLoopsAsync(_autoRefreshCts.Token));
     }
 
     private void RebuildAlertsView()
@@ -357,24 +359,63 @@ public partial class DashboardViewModel : ObservableObject
 
     private int _refreshTick;
 
-    private void RefreshAlertsView()
+// Coalesce refresh requests to avoid blocking the UI thread (CollectionView.Refresh can be expensive).
+private readonly object _refreshLock = new();
+private DispatcherTimer? _refreshDebounceTimer;
+private bool _refreshPending;
+
+private void RequestAlertsViewRefresh()
+{
+    // Always schedule on UI thread; coalesce multiple requests.
+    if (System.Windows.Application.Current?.Dispatcher == null) return;
+
+    if (!System.Windows.Application.Current.Dispatcher.CheckAccess())
     {
-        _refreshTick++;
-        _log.Log($"RefreshAlertsView tick={_refreshTick}");
-
-        if (System.Windows.Application.Current?.Dispatcher?.CheckAccess() == false)
-        {
-            System.Windows.Application.Current.Dispatcher.Invoke(() =>
-            {
-                AlertsView?.Refresh();
-                AlertsChanged?.Invoke(this, EventArgs.Empty);
-            });
-            return;
-        }
-
-        AlertsView?.Refresh();
-        AlertsChanged?.Invoke(this, EventArgs.Empty);
+        System.Windows.Application.Current.Dispatcher.BeginInvoke(RequestAlertsViewRefresh);
+        return;
     }
+
+    lock (_refreshLock)
+    {
+        _refreshPending = true;
+
+        _refreshDebounceTimer ??= new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(250)
+        };
+
+        _refreshDebounceTimer.Tick -= RefreshDebounceTimer_Tick;
+        _refreshDebounceTimer.Tick += RefreshDebounceTimer_Tick;
+
+        if (!_refreshDebounceTimer.IsEnabled)
+            _refreshDebounceTimer.Start();
+    }
+}
+
+private void RefreshDebounceTimer_Tick(object? sender, EventArgs e)
+{
+    if (System.Windows.Application.Current?.Dispatcher?.CheckAccess() == false)
+        return;
+
+    bool doRefresh;
+    lock (_refreshLock)
+    {
+        doRefresh = _refreshPending;
+        _refreshPending = false;
+    }
+
+    if (!doRefresh) return;
+
+    _refreshTick++;
+    _log.Log($"AlertsView.Refresh tick={_refreshTick}");
+
+    // One refresh for the whole batch.
+    AlertsView?.Refresh();
+    AlertsChanged?.Invoke(this, EventArgs.Empty);
+}
+
+private void RefreshAlertsView() => RequestAlertsViewRefresh();
+
 
     private bool FilterAlert(object obj)
     {
@@ -419,10 +460,14 @@ public partial class DashboardViewModel : ObservableObject
             var alertBounds = TryGetAlertBounds(a);
             if (alertBounds is null)
             {
-                // Strict: if we cannot evaluate range yet, treat as out-of-range.
-                // But queue zone bounds resolution so it will appear once we can compute bounds.
+                // If we cannot evaluate range yet (zone-only alert), queue zone bounds resolution.
                 if (a.AffectedZonesUrls is { Count: > 0 })
                     QueueZonePointResolve(a);
+
+                // For critical warnings, allow the alert to show while pending range evaluation.
+                // Once bounds arrive, the view will re-evaluate and either keep or remove it.
+                if (!string.IsNullOrWhiteSpace(a.Event) && _criticalEvents.Contains(a.Event.Trim()))
+                    return true;
 
                 return false;
             }
@@ -502,7 +547,7 @@ public partial class DashboardViewModel : ObservableObject
                     }
 
                     // Trigger a refresh so radius filtering can re-evaluate.
-                    App.Current.Dispatcher.Invoke(RefreshAlertsView);
+                    RequestAlertsViewRefresh();
                 }
                 catch
                 {
@@ -666,7 +711,7 @@ public partial class DashboardViewModel : ObservableObject
         try
         {
             // Fast loop: pull ALL TOR/SVR/FFW nationwide (still usually small), then filter locally by radius.
-            items = await _alerts.GetActiveAlertsByEventsAsync(_criticalEvents, ct);
+            items = await _alerts.GetActiveAlertsByEventsAsync(_criticalEvents, ct).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -740,8 +785,9 @@ public partial class DashboardViewModel : ObservableObject
         var b = TryGetAlertBounds(a);
         if (b is null)
         {
-            // For critical warnings we can still be strict: if we can't compute a point yet, treat as out-of-range.
-            // (Most TOR/SVR/FFW include geometry anyway.)
+            // If we can't compute bounds yet (zone-only alerts), queue resolution and treat as *pending*.
+            // We return false for notification logic (so we don't beep incorrectly),
+            // but the main filter can still allow it through once bounds arrive.
             if (a.AffectedZonesUrls is { Count: > 0 })
                 QueueZonePointResolve(a);
 
@@ -902,7 +948,9 @@ public partial class DashboardViewModel : ObservableObject
     {
         try
         {
+            var sw = System.Diagnostics.Stopwatch.StartNew();
             StatusText = "Refreshing alerts...";
+            _log.Info($"RefreshAsync start nearMe={FilterSettings.UseNearMe} radiusOn={FilterSettings.UseRadiusFilter} radiusMi={FilterSettings.RadiusMiles}");
             _log.Log("Refreshing alerts.");
 
             IReadOnlyList<NwsAlert> items;
@@ -912,11 +960,11 @@ public partial class DashboardViewModel : ObservableObject
                 GeoPoint point = await _gps.GetCurrentAsync(CancellationToken.None)
                                 ?? new GeoPoint(FilterSettings.ManualLat, FilterSettings.ManualLon);
 
-                items = await _alerts.GetActiveAlertsForPointAsync(point, CancellationToken.None);
+                items = await _alerts.GetActiveAlertsForPointAsync(point, CancellationToken.None).ConfigureAwait(false);
             }
             else
             {
-                items = await _alerts.GetActiveAlertsAsync(CancellationToken.None);
+                items = await _alerts.GetActiveAlertsAsync(CancellationToken.None).ConfigureAwait(false);
             }
 
             var sorted = items
@@ -935,6 +983,7 @@ public partial class DashboardViewModel : ObservableObject
 
                 RefreshAlertsView();
                 StatusText = $"Loaded {Alerts.Count} alerts.";
+                _log.Info($"RefreshAsync done count={Alerts.Count} ms={sw.ElapsedMilliseconds}");
             });
         }
         catch (Exception ex)

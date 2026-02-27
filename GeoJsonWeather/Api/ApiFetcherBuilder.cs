@@ -3,7 +3,9 @@
 public sealed class ApiFetcherBuilder
 {
     private readonly string _url;
-    private string _userAgent = "";
+    // api.weather.gov requires a descriptive User-Agent including contact info.
+    // Default to our app UA to avoid accidental blank/invalid requests.
+    private string _userAgent = NwsDefaults.UserAgent;
 
     public ApiFetcherBuilder(string url)
     {
@@ -12,7 +14,7 @@ public sealed class ApiFetcherBuilder
 
     public ApiFetcherBuilder WithUserAgent(string userAgent)
     {
-        _userAgent = userAgent ?? "";
+        _userAgent = string.IsNullOrWhiteSpace(userAgent) ? NwsDefaults.UserAgent : userAgent;
         return this;
     }
 

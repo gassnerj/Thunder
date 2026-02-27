@@ -13,18 +13,91 @@
     <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
 
     <style>
-        html, body, #map { height: 100%; margin: 0; }
+        html, body { height: 100%; margin: 0; }
+        #mapWrap { height: 100%; width: 100%; position: relative; }
+        #map { height: 100%; width: 100%; }
 
         .leaflet-routing-container {
             background: rgba(0,0,0,0.8);
             color: white;
         }
-    </style>
+    
+        .radar-overlay{
+            position: absolute;
+            left: 50%;
+            bottom: 16px;
+            transform: translateX(-50%);
+            z-index: 500;
+            pointer-events: none; /* enable clicks only on the bar */
+        }
+
+        .radar-overlay.hidden{ display:none; }
+
+        .radar-bar{
+            pointer-events: auto;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(15,23,42,0.88);
+            color: #e5e7eb;
+            border: 1px solid rgba(51,65,85,0.9);
+            border-radius: 12px;
+            padding: 8px 10px;
+            font: 13px "Segoe UI", sans-serif;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+        }
+
+        .radar-btn{
+            min-width: 38px;
+            height: 32px;
+            background: rgba(31,41,55,0.95);
+            color: #e5e7eb;
+            border: 1px solid rgba(51,65,85,0.9);
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        .radar-btn:hover{ filter: brightness(1.15); }
+
+        .radar-text{
+            display:flex;
+            flex-direction:column;
+            line-height: 1.15;
+            min-width: 210px;
+        }
+
+        .radar-line{ white-space: nowrap; }
+        .radar-muted{ color: rgba(229,231,235,0.72); font-size: 12px; }
+</style>
 </head>
 <body>
-<div id="map"></div>
+<div id="mapWrap">
+    <div id="map"></div>
+
+    <!-- Floating radar controls (shown only when radar is enabled) -->
+    <div id="radarOverlay" class="radar-overlay hidden" aria-hidden="true">
+        <div class="radar-bar">
+            <button class="radar-btn" data-act="rew" title="Rewind">⏪</button>
+            <button class="radar-btn" data-act="play" title="Play">▶</button>
+            <button class="radar-btn" data-act="pause" title="Pause">⏸</button>
+            <button class="radar-btn" data-act="fwd" title="Forward">⏩</button>
+
+            <div class="radar-text">
+                <div id="radarFrameStamp" class="radar-line"></div>
+                <div id="radarRefreshStamp" class="radar-line radar-muted"></div>
+            </div>
+        </div>
+    </div>
+</div>
 
 <script>
+// Opacity multipliers (0..1). Controlled by WPF sliders.
+let alertsOpacityFactor = 1.0;
+let spcOpacityFactor = 1.0;
+function __clamp01(x){ x=parseFloat(x); if(isNaN(x)) return 1.0; return Math.max(0.0, Math.min(1.0, x)); }
+window.setAlertsOpacity = function(v){ alertsOpacityFactor = __clamp01(v); if(window.alertLayer){ window.alertLayer.setStyle(alertStyle);} };
+window.setSpcOpacity = function(v){ spcOpacityFactor = __clamp01(v); if(window.spcLayerD1){ window.spcLayerD1.setStyle(spcStyle);} if(window.spcLayerD2){ window.spcLayerD2.setStyle(spcStyle);} if(window.spcLayerD3){ window.spcLayerD3.setStyle(spcStyle);} };
+
 
     // =======================
     // Map Base
@@ -255,26 +328,262 @@
     map.on('zoomstart', disableFollow);
 
     // =======================
-    // Radar
-    // =======================
-    window.setRadarEnabled = (enabled) => {
-        if (enabled) {
-            if (!radarLayer) {
-                radarLayer = L.tileLayer.wms(
-                    "https://mesonet.agron.iastate.edu/cgi-bin/wms/nexrad/n0r.cgi",
-                    {
-                        layers: "nexrad-n0r-900913",
-                        format: "image/png",
-                        transparent: true,
-                        opacity: 0.55
-                    }
-                );
-            }
-            radarLayer.addTo(map);
-        } else {
-            if (radarLayer) map.removeLayer(radarLayer);
+// Radar (Animated Mosaic via IEM WMS-T)
+// =======================
+// Uses the IEM time-aware WMS endpoint. Each frame is a WMS layer with a different TIME parameter.
+// Frame cadence is 5 minutes.
+// Docs: https://mesonet.agron.iastate.edu/docs/nexrad_composites/ (nexrad-n0r-wmst layer)
+(function () {
+    const WMS_URL = "https://mesonet.agron.iastate.edu/cgi-bin/wms/nexrad/n0r-t.cgi";
+    const WMS_LAYER = "nexrad-n0r-wmst";
+    const FRAME_MINUTES = 5;
+    const MAX_FRAMES = 30;
+
+    let enabled = false;
+    let frameCount = 10;
+    let speedMs = 800;
+
+    let frames = [];   // Date objects (UTC)
+    let layers = [];
+    let ready = [];    // boolean[] layer has loaded at least once
+    let idx = 0;
+    let visibleIdx = -1;
+    let timer = null;
+    let refreshTimer = null;
+
+    // Floating overlay elements
+    let overlayEl = null;
+    let frameStampEl = null;
+    let refreshStampEl = null;
+
+    function roundDownTo5MinUtc(d) {
+        const ms = d.getTime();
+        const step = FRAME_MINUTES * 60 * 1000;
+        return new Date(Math.floor(ms / step) * step);
+    }
+
+    function isoUtcNoMillis(d) {
+        // YYYY-MM-DDTHH:mm:00Z
+        const pad = (n) => String(n).padStart(2, "0");
+        return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}T${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:00Z`;
+    }
+
+    function ensureControls() {
+        if (overlayEl) return;
+
+        overlayEl = document.getElementById('radarOverlay');
+        frameStampEl = document.getElementById('radarFrameStamp');
+        refreshStampEl = document.getElementById('radarRefreshStamp');
+
+        // Click handling
+        overlayEl.addEventListener('click', (e) => {
+            const act = e.target?.getAttribute?.('data-act');
+            if (!act) return;
+            if (act === 'rew') prev();
+            if (act === 'play') play();
+            if (act === 'pause') pause();
+            if (act === 'fwd') next();
+        });
+    }
+
+    function setFrameStamp(text) {
+        ensureControls();
+        if (frameStampEl) frameStampEl.textContent = text || '';
+    }
+
+    function setRefreshStamp(text) {
+        ensureControls();
+        if (refreshStampEl) refreshStampEl.textContent = text || '';
+    }
+
+    function clearLayers() {
+        for (const l of layers) {
+            try { map.removeLayer(l); } catch { }
         }
+        layers = [];
+        ready = [];
+        visibleIdx = -1;
+    }
+
+    function formatFrameStamp(d) {
+        if (!d) return '';
+        return `Frame: ${d.toLocaleString()}`;
+    }
+
+    function show(i) {
+        if (!layers.length) return;
+        i = (i % layers.length + layers.length) % layers.length;
+
+        // Avoid flicker: don't swap to a frame that hasn't loaded yet.
+        if (!ready[i]) return;
+
+        idx = i;
+
+        if (visibleIdx >= 0 && layers[visibleIdx]) {
+            try { layers[visibleIdx].setOpacity(0); } catch { }
+        }
+
+        const layer = layers[idx];
+        if (!map.hasLayer(layer)) layer.addTo(map);
+        layer.setOpacity(0.60);
+        visibleIdx = idx;
+
+        setFrameStamp(formatFrameStamp(frames[idx]));
+    }
+
+    function next() { if (layers.length) show(idx + 1); }
+    function prev() { if (layers.length) show(idx - 1); }
+
+    function play() {
+        if (timer || layers.length < 2) return;
+
+        // If current isn't ready, jump to first ready.
+        if (!ready[idx]) {
+            const first = ready.findIndex(x => x);
+            if (first >= 0) idx = first;
+        }
+
+        timer = setInterval(() => {
+            if (!layers.length) return;
+
+            // Advance until we hit a ready frame.
+            for (let step = 1; step <= layers.length; step++) {
+                const j = (idx + step) % layers.length;
+                if (ready[j]) { show(j); break; }
+            }
+        }, speedMs);
+    }
+
+    function pause() {
+        if (!timer) return;
+        clearInterval(timer);
+        timer = null;
+    }
+
+    function rebuildFrames() {
+        if (!enabled) return;
+
+        const wasPlaying = !!timer;
+        pause();
+
+        const now = roundDownTo5MinUtc(new Date());
+        frames = [];
+        for (let i = frameCount - 1; i >= 0; i--) {
+            frames.push(new Date(now.getTime() - i * FRAME_MINUTES * 60 * 1000));
+        }
+
+        const keepTs = frames[idx] ? frames[idx].getTime() : null;
+
+        clearLayers();
+
+        // Build + preload layers. We add them all at opacity 0 so tiles fetch immediately,
+        // which prevents the "frame pops in one at a time" flicker when you hit play.
+        layers = frames.map((d, i) => {
+            const layer = L.tileLayer.wms(WMS_URL, {
+                layers: WMS_LAYER,
+                format: "image/png",
+                transparent: true,
+                opacity: 0,
+                time: isoUtcNoMillis(d)
+            });
+
+            layer.on('load', () => {
+                ready[i] = true;
+
+                // First time anything loads, show something immediately.
+                if (visibleIdx < 0) {
+                    if (ready[newIdx]) show(newIdx);
+                    else show(i);
+
+                    if (wasPlaying) setTimeout(() => play(), 50);
+                }
+            });
+
+            return layer;
+        });
+
+        ready = new Array(layers.length).fill(false);
+
+        // Best-effort keep index
+        let newIdx = 0;
+        if (keepTs != null) {
+            const found = frames.findIndex(x => x.getTime() === keepTs);
+            if (found >= 0) newIdx = found;
+        }
+
+        // Add all layers to force tile fetch / cache (opacity 0)
+        for (const l of layers) {
+            try { l.addTo(map); } catch { }
+        }
+
+        // Prefer prior index; actual visible frame will be chosen when a layer loads.
+        idx = newIdx;
+
+        const local = new Date();
+        setRefreshStamp(`Last refresh: ${local.toLocaleTimeString()}`);
+    }
+
+    function startAutoRefresh() {
+        stopAutoRefresh();
+        // Refresh frames while radar is enabled (keeps newest frames coming in)
+        refreshTimer = setInterval(rebuildFrames, 2 * 60 * 1000);
+    }
+
+    function stopAutoRefresh() {
+        if (refreshTimer) {
+            clearInterval(refreshTimer);
+            refreshTimer = null;
+        }
+    }
+
+    function setEnabled(on) {
+        enabled = !!on;
+        ensureControls();
+
+        // Show/hide the floating overlay controls.
+        if (overlayEl) {
+            overlayEl.classList.toggle('hidden', !enabled);
+            overlayEl.setAttribute('aria-hidden', (!enabled).toString());
+        }
+
+        if (!enabled) {
+            pause();
+            stopAutoRefresh();
+            clearLayers();
+            frames = [];
+            setFrameStamp('');
+            setRefreshStamp('');
+            return;
+        }
+
+        rebuildFrames();
+        startAutoRefresh();
+    }
+
+    function setFrameCount(n) {
+        const v = Math.max(1, Math.min(MAX_FRAMES, Math.round(Number(n) || 10)));
+        frameCount = v;
+        if (enabled) rebuildFrames();
+    }
+
+    function setSpeed(ms) {
+        speedMs = Math.max(200, Math.round(Number(ms) || 800));
+        if (timer) { pause(); play(); }
+    }
+
+    window.radar = {
+        setEnabled,
+        setFrameCount,
+        setSpeed,
+        next,
+        prev,
+        play,
+        pause
     };
+
+    // Back-compat entry point
+    window.setRadarEnabled = (on) => window.radar.setEnabled(on);
+})();
 
     // =======================
     // Routing
@@ -337,7 +646,7 @@
         if (label.includes("MDT") || label.includes("MODERATE")) fillOpacity = 0.16;
         if (label.includes("HIGH")) fillOpacity = 0.20;
 
-        return { color, fillColor: color, weight, opacity: 0.95, fillOpacity };
+        return { color, fillColor: color, weight, opacity: 0.95 * spcOpacityFactor, fillOpacity };
     }
 
     async function ensureSpcLayer(dayKey) {

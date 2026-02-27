@@ -60,6 +60,9 @@ public sealed partial class MapStylingViewModel : ObservableObject
     [ObservableProperty] private bool showSeverityGlow;
     [ObservableProperty] private bool showSeverityStripes;
 
+    [ObservableProperty] private int alertsOpacityPercent;
+    [ObservableProperty] private int spcOpacityPercent;
+
     public MapStylingViewModel(AlertFilterSettings settings)
     {
         _settings = settings;
@@ -68,6 +71,8 @@ public sealed partial class MapStylingViewModel : ObservableObject
         ShowSeverityOutline = settings.ShowSeverityOutline;
         ShowSeverityGlow = settings.ShowSeverityGlow;
         ShowSeverityStripes = settings.ShowSeverityStripes;
+        AlertsOpacityPercent = settings.AlertsOpacityPercent;
+        SpcOpacityPercent = settings.SpcOpacityPercent;
 
         RefreshItems();
     }
@@ -112,6 +117,8 @@ public sealed partial class MapStylingViewModel : ObservableObject
         _settings.ShowSeverityOutline = ShowSeverityOutline;
         _settings.ShowSeverityGlow = ShowSeverityGlow;
         _settings.ShowSeverityStripes = ShowSeverityStripes;
+        _settings.AlertsOpacityPercent = Math.Clamp(AlertsOpacityPercent, 0, 100);
+        _settings.SpcOpacityPercent = Math.Clamp(SpcOpacityPercent, 0, 100);
 
         var dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var it in Items)

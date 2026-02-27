@@ -13,6 +13,7 @@
     <ProjectReference Include="..\GeoJsonWeather\GeoJsonWeather.csproj" />
     <ProjectReference Include="..\GPSData\GPSData.csproj" />
     <ProjectReference Include="..\vMixController\vMixController.csproj" />
+    <ProjectReference Include="..\MeteorologyCore\MeteorologyCore.csproj" />
   </ItemGroup>
 
   <ItemGroup>

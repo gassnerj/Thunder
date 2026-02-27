@@ -61,6 +61,8 @@ namespace GeoJsonWeather
 
         public async Task FetchData(string url)
         {
+            var __sw = System.Diagnostics.Stopwatch.StartNew();
+            WebData.Logger?.Invoke($"NWS alerts fetch start url={url}");
             NewAlertCount = 0;
             OnAlertMessage(new AlertMessageEventArgs("Fetching alerts..."));
 
@@ -68,7 +70,9 @@ namespace GeoJsonWeather
             Alerts.Clear();
 
             ApiFetcher apiFetcher = new ApiFetcherBuilder(url).Build();
-            string jsonResponse = await apiFetcher.FetchData();
+            string jsonResponse = await apiFetcher.FetchData().ConfigureAwait(false);
+
+            WebData.Logger?.Invoke($"NWS alerts fetch ok ms={__sw.ElapsedMilliseconds} len={jsonResponse?.Length ?? 0}");
 
             using JsonDocument document = JsonDocument.Parse(jsonResponse);
             JsonElement features = document.RootElement.GetProperty("features");
@@ -79,6 +83,7 @@ namespace GeoJsonWeather
                 OnAlertMessage(new AlertMessageEventArgs("No new alerts."));
 
             OnAlertMessage(new AlertMessageEventArgs($"Total alerts: {Alerts.Count}"));
+            WebData.Logger?.Invoke($"NWS alerts mapped count={Alerts.Count} new={NewAlertCount} ms={__sw.ElapsedMilliseconds}");
 
             _runCount++;
         }

@@ -22,6 +22,15 @@ public partial class AlertFilterSettings : ObservableObject
     [ObservableProperty] private bool useRadiusFilter = false;
     [ObservableProperty] private double radiusMiles = 50;
 
+    // Display-only: show/hide the radius ring on the map.
+    // This must NOT change filtering behavior.
+    [ObservableProperty] private bool showRadiusCircle = true;
+
+    // Layer opacity controls (0-100). These affect rendering only.
+    [ObservableProperty] private int alertsOpacityPercent = 100;
+    [ObservableProperty] private int spcOpacityPercent = 100;
+
+
     // WeatherFront-style category chips
     [ObservableProperty] private AlertCategory selectedCategory = AlertCategory.Severe;
 

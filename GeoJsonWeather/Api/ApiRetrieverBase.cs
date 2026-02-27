@@ -6,17 +6,19 @@ namespace GeoJsonWeather.Api;
 public abstract class ApiRetrieverBase : IApiRetriever
 {
     private readonly string _url;
-    private readonly string _userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0";
+    // api.weather.gov requires a descriptive User-Agent including contact info.
+    private readonly string _userAgent = NwsDefaults.UserAgent;
 
     protected ApiRetrieverBase(string url, string userAgent)
     {
         _url = url;
-        if (!string.IsNullOrEmpty(userAgent))
+        if (!string.IsNullOrWhiteSpace(userAgent))
             _userAgent = userAgent;
     }
 
     async Task<string> IApiRetriever.GetData(CancellationToken ct)
     {
-        return await WebData.SendHttpRequestAsync(_userAgent, _url);
+        // Honor cancellation + avoid hanging calls.
+        return await WebData.SendHttpRequestAsync(_userAgent, _url, ct).ConfigureAwait(false);
     }
 }
