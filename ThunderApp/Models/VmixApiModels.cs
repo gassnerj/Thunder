@@ -65,6 +65,22 @@ public sealed class VmixSnapshotRowDto
     public double? SeaLevelPressureInHg { get; set; }
 }
 
+
+public sealed class VmixLocationRowDto
+{
+    public DateTime generatedAtUtc { get; set; }
+    public string locLine { get; set; } = "";
+    public string locDetail { get; set; } = "";
+    public string road { get; set; } = "";
+    public string city { get; set; } = "";
+    public string state { get; set; } = "";
+    public double distMi { get; set; }
+    public string dir { get; set; } = "";
+    public double lat { get; set; }
+    public double lon { get; set; }
+    public string source { get; set; } = "";
+}
+
 public sealed class VmixApiSnapshot
 {
     public DateTime generatedAtUtc { get; set; }
@@ -80,4 +96,5 @@ public sealed class VmixApiSnapshot
     public VmixObservationDto? observation { get; set; }
     public IReadOnlyList<VmixWarningDto> warnings { get; set; } = [];
     public IReadOnlyList<VmixSnapshotRowDto> rows { get; set; } = [];
+    public IReadOnlyList<VmixLocationRowDto> locationRows { get; set; } = [];
 }
