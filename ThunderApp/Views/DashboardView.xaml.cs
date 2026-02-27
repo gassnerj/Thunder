@@ -33,11 +33,12 @@ namespace ThunderApp.Views
         private double? _lastLon;
 
         private const int DefaultZoom = 10;
-        private const double MinTrailMoveMeters = 50;
+        private const double MinTrailMoveMeters = 5;
 
         private DashboardViewModel? _vm;
 
         private PropertyChangedEventHandler? _filterChangedHandler;
+        private PropertyChangedEventHandler? _vmChangedHandler;
         private static bool _paletteHooked;
 
 
@@ -107,6 +108,9 @@ namespace ThunderApp.Views
             if (_vm != null)
                 _vm.AlertsChanged -= Vm_AlertsChanged;
 
+            if (_vm != null && _vmChangedHandler != null)
+                _vm.PropertyChanged -= _vmChangedHandler;
+
             if (_vm?.FilterSettings != null && _filterChangedHandler != null)
                 _vm.FilterSettings.PropertyChanged -= _filterChangedHandler;
 
@@ -117,6 +121,27 @@ namespace ThunderApp.Views
 
             if (_vm != null)
                 _vm.AlertsChanged += Vm_AlertsChanged;
+
+            if (_vm != null)
+            {
+                _vmChangedHandler = (_, args) =>
+                {
+                    if (args.PropertyName == nameof(DashboardViewModel.CurrentLocation))
+                    {
+                        _ = Dispatcher.BeginInvoke(new Action(async () =>
+                        {
+                            try
+                            {
+                                var p = _vm?.CurrentLocation;
+                                if (p != null)
+                                    await UpdateMapLocationAsync(p.Lat, p.Lon, DefaultZoom, addTrail: true);
+                            }
+                            catch { }
+                        }));
+                    }
+                };
+                _vm.PropertyChanged += _vmChangedHandler;
+            }
 
             if (_vm?.FilterSettings != null)
             {

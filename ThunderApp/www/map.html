@@ -496,8 +496,6 @@ window.setSpcOpacity = function(v){
             frames.push(new Date(now.getTime() - i * FRAME_MINUTES * 60 * 1000));
         }
 
-        const keepTs = frames[idx] ? frames[idx].getTime() : null;
-
         clearLayers();
 
         // Build + preload layers. We add them all at opacity 0 so tiles fetch immediately,
@@ -528,12 +526,8 @@ window.setSpcOpacity = function(v){
 
         ready = new Array(layers.length).fill(false);
 
-        // Best-effort keep index
+        // Start at newest frame by default.
         let newIdx = Math.max(0, frames.length - 1);
-        if (keepTs != null) {
-            const found = frames.findIndex(x => x.getTime() === keepTs);
-            if (found >= 0) newIdx = found;
-        }
 
         // Add all layers to force tile fetch / cache (opacity 0)
         for (const l of layers) {
@@ -650,6 +644,27 @@ window.setSpcOpacity = function(v){
         day3: "https://www.spc.noaa.gov/products/outlook/day3otlk_cat.nolyr.geojson"
     };
 
+    const spcTextUrls = {
+        day1: "https://www.spc.noaa.gov/products/outlook/day1otlk.txt",
+        day2: "https://www.spc.noaa.gov/products/outlook/day2otlk.txt",
+        day3: "https://www.spc.noaa.gov/products/outlook/day3otlk.txt"
+    };
+
+    const spcTextCache = {};
+
+    async function getSpcText(dayKey) {
+        if (spcTextCache[dayKey]) return spcTextCache[dayKey];
+        try {
+            const resp = await fetch(spcTextUrls[dayKey]);
+            if (!resp.ok) throw new Error("SPC text fetch failed");
+            const txt = await resp.text();
+            spcTextCache[dayKey] = txt;
+            return txt;
+        } catch {
+            return "SPC text unavailable.";
+        }
+    }
+
     function spcStyle(feature) {
         const p = feature?.properties || {};
         const label = (p.LABEL || p.label || p.RISK || p.risk || "").toString().toUpperCase();
@@ -670,11 +685,12 @@ window.setSpcOpacity = function(v){
         if (label.includes("HIGH"))                               color = "#D53F8C";
 
         let weight = 2;
-        let fillOpacity = 0.12;
-        if (label.includes("MDT") || label.includes("MODERATE")) fillOpacity = 0.16;
-        if (label.includes("HIGH")) fillOpacity = 0.20;
+        let fillOpacity = 0.28;
+        if (label.includes("MDT") || label.includes("MODERATE")) fillOpacity = 0.34;
+        if (label.includes("HIGH")) fillOpacity = 0.42;
 
-        return { color, fillColor: color, weight, opacity: 0.95 * spcOpacityFactor, fillOpacity };
+        fillOpacity = Math.max(0.04, Math.min(0.85, fillOpacity * spcOpacityFactor));
+        return { color, fillColor: color, weight, opacity: 0.98 * spcOpacityFactor, fillOpacity };
     }
 
     async function ensureSpcLayer(dayKey) {
@@ -690,7 +706,15 @@ window.setSpcOpacity = function(v){
             onEachFeature: (feature, lyr) => {
                 const p = feature?.properties || {};
                 const label = (p.LABEL || p.label || p.RISK || p.risk || "SPC Outlook");
-                lyr.bindTooltip(label, { sticky: true });
+                lyr.on('click', async (ev) => {
+                    const raw = await getSpcText(dayKey);
+                    const text = raw.length > 1800 ? `${raw.slice(0, 1800)}
+
+…` : raw;
+                    const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                    const html = `<div style="max-width:500px"><div style="font-weight:600;margin-bottom:6px">${esc(dayKey.toUpperCase())} • ${esc(label)}</div><pre style="white-space:pre-wrap;max-height:280px;overflow:auto;margin:0">${esc(text)}</pre></div>`;
+                    L.popup({ maxWidth: 540 }).setLatLng(ev.latlng).setContent(html).openOn(map);
+                });
             }
         });
 

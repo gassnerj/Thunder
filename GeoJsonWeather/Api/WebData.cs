@@ -27,6 +27,7 @@ namespace GeoJsonWeather.Api
                 string body = await url
                     .WithHeader("User-Agent", ua)
                     .WithHeader("Accept", "application/geo+json, application/json")
+                    .WithHeader("Accept-Language", "en-US,en;q=0.9")
                     .WithTimeout(TimeSpan.FromSeconds(12))
                     .GetStringAsync(cancellationToken: ct)
                     .ConfigureAwait(false);
@@ -61,7 +62,7 @@ namespace GeoJsonWeather.Api
             Environment.GetEnvironmentVariable("THUNDER_NWS_USER_AGENT")
             is { Length: > 0 } explicitUa
                 ? explicitUa
-                : $"ThunderApp/1.0 (contact: {Contact})";
+                : $"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36 ThunderApp/1.0 (contact: {Contact})";
 
         private static string Contact =>
             Environment.GetEnvironmentVariable("THUNDER_NWS_CONTACT")
