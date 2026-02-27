@@ -102,7 +102,8 @@ public sealed class VmixDataApiHost : IDisposable
                     "/api/v1/vmix/table",
                     "/api/v1/vmix/warnings",
                     "/api/v1/vmix/warnings/table",
-                    "/api/v1/vmix/observation"
+                    "/api/v1/vmix/observation",
+                    "/api/v1/vmix/location"
                 },
                 snapshot.generatedAtUtc
             },
@@ -110,12 +111,13 @@ public sealed class VmixDataApiHost : IDisposable
             "/api/v1/vmix/warnings" => new { snapshot.generatedAtUtc, snapshot.radiusMiles, snapshot.useRadiusFilter, warnings = snapshot.warnings, rows = EnsureWarningsTable(snapshot) },
             "/api/v1/vmix/warnings/table" => EnsureWarningsTable(snapshot),
             "/api/v1/vmix/observation" => new { snapshot.generatedAtUtc, snapshot.sourceRequested, snapshot.sourceActive, snapshot.vehicleStationAvailable, observation = snapshot.observation, rows = snapshot.rows },
+            "/api/v1/vmix/location" => EnsureLocationTable(snapshot),
             "/api/v1/vmix/snapshot" => snapshot,
             "/api/v1/vmix/table" => snapshot.rows,
             _ => new { ok = false, error = "not_found" }
         };
 
-        int status = path is "/" or "/api/v1/vmix/health" or "/api/v1/vmix/warnings" or "/api/v1/vmix/warnings/table" or "/api/v1/vmix/observation" or "/api/v1/vmix/snapshot" or "/api/v1/vmix/table"
+        int status = path is "/" or "/api/v1/vmix/health" or "/api/v1/vmix/warnings" or "/api/v1/vmix/warnings/table" or "/api/v1/vmix/observation" or "/api/v1/vmix/location" or "/api/v1/vmix/snapshot" or "/api/v1/vmix/table"
             ? 200 : 404;
 
         string json = JsonSerializer.Serialize(payload, _jsonOptions);
@@ -127,6 +129,30 @@ public sealed class VmixDataApiHost : IDisposable
         ctx.Response.ContentLength64 = bytes.Length;
         await ctx.Response.OutputStream.WriteAsync(bytes, 0, bytes.Length);
         ctx.Response.Close();
+    }
+
+    private static IReadOnlyList<VmixLocationRowDto> EnsureLocationTable(VmixApiSnapshot snapshot)
+    {
+        if (snapshot.locationRows is { Count: > 0 })
+            return snapshot.locationRows;
+
+        return new[]
+        {
+            new VmixLocationRowDto
+            {
+                generatedAtUtc = DateTime.UtcNow,
+                locLine = "",
+                locDetail = "",
+                road = "",
+                city = "",
+                state = "",
+                distMi = 0.1,
+                dir = "N",
+                lat = 0,
+                lon = 0,
+                source = ""
+            }
+        };
     }
 
     private static IReadOnlyList<VmixWarningDto> EnsureWarningsTable(VmixApiSnapshot snapshot)

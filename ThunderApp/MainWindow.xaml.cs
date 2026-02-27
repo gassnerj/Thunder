@@ -43,6 +43,8 @@ namespace ThunderApp
         private IGeoCodeLocation _geoCodeLocation = null!;
         private Vmix _vmixLocation = null!;
         private VmixDataApiHost? _vmixApiHost;
+        private ILocationOverlayService? _locationOverlayService;
+        private LocationOverlaySnapshot? _lastLocationOverlay;
         private string SerialPortName { get; set; } = "COM5";
 
         private SeriesCollection _seriesCollection = null!;
@@ -138,6 +140,13 @@ namespace ThunderApp
 
             // Shared HTTP + cache for NWS/SPC helpers.
             var http = new HttpClient();
+            var appSettings = AppSettingsLoader.Load();
+            _locationOverlayService = new ReverseGeocodeCoordinator(
+                http,
+                appSettings.Mapbox.AccessToken,
+                appSettings.Nominatim.BaseUrl,
+                appSettings.Nominatim.UserAgent,
+                msg => log.Log(msg));
             var cacheRoot = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "cache");
             var cache = new SimpleDiskCache(cacheRoot);
 
@@ -249,6 +258,7 @@ namespace ThunderApp
                 snapshot.sourceActive = "VehicleLocalUnavailable";
                 snapshot.observation = null;
                 snapshot.rows = BuildSnapshotRows(snapshot);
+                snapshot.locationRows = BuildLocationRows(snapshot);
                 return snapshot;
             }
 
@@ -257,6 +267,7 @@ namespace ThunderApp
             {
                 snapshot.observation = null;
                 snapshot.rows = BuildSnapshotRows(snapshot);
+                snapshot.locationRows = BuildLocationRows(snapshot);
                 return snapshot;
             }
 
@@ -278,10 +289,35 @@ namespace ThunderApp
             };
 
             snapshot.rows = BuildSnapshotRows(snapshot);
+            snapshot.locationRows = BuildLocationRows(snapshot);
 
             return snapshot;
         }
 
+
+        private IReadOnlyList<VmixLocationRowDto> BuildLocationRows(VmixApiSnapshot snapshot)
+        {
+            var loc = _lastLocationOverlay;
+            var lat = snapshot.centerLat ?? 0;
+            var lon = snapshot.centerLon ?? 0;
+            return new[]
+            {
+                new VmixLocationRowDto
+                {
+                    generatedAtUtc = (loc?.GeneratedAtUtc ?? DateTime.UtcNow),
+                    locLine = loc?.LocLine ?? $"{lat:0.0000}, {lon:0.0000}",
+                    locDetail = loc?.LocDetail ?? $"{lat:0.0000}, {lon:0.0000}",
+                    road = loc?.Road ?? "",
+                    city = loc?.City ?? "",
+                    state = loc?.State ?? "",
+                    distMi = loc?.DistMi ?? 0.1,
+                    dir = loc?.Dir ?? "N",
+                    lat = loc?.Lat ?? lat,
+                    lon = loc?.Lon ?? lon,
+                    source = loc?.Source ?? "GPS"
+                }
+            };
+        }
 
         private static IReadOnlyList<VmixSnapshotRowDto> BuildSnapshotRows(VmixApiSnapshot snapshot)
         {
@@ -696,30 +732,26 @@ namespace ThunderApp
 
             // Feed the VM the latest GPS location; the VM owns refresh scheduling.
             _dashboardVm?.SetCurrentLocation(NMEA.Latitude, NMEA.Longitude);
+            _ = RefreshLocationOverlayAsync(new GeoPoint(NMEA.Latitude, NMEA.Longitude));
         }
 
         private async Task UpdateLocation(Vmix vmix)
         {
-            if (NMEA.Status == "Valid Fix")
+            if (NMEA.Status != "Valid Fix")
+                return;
+
+            var line = _lastLocationOverlay?.LocLine ?? $"{NMEA.Latitude:0.0000}, {NMEA.Longitude:0.0000}";
+            vmix.Value = line;
+            string locationUrl = vmix.UpdateUrl();
+            await Vmix.SendRequest(locationUrl);
+
+            await Dispatcher.InvokeAsync(() =>
             {
-                await Task.Run(async () =>
-                {
-                    _geoCodeLocation = GeoCode.GetData(NMEA)!;
-
-                    // Update VMix and other UI elements
-                    await Dispatcher.Invoke(async () =>
-                    {
-                        vmix.Value = $"Direction: ({NMEA.GetCardinalDirection(NMEA.Course)}) - Location: {_geoCodeLocation!.Road} - {_geoCodeLocation.City}, {_geoCodeLocation.County}, {_geoCodeLocation.State}";
-                        string locationUrl = vmix.UpdateUrl();
-                        await Vmix.SendRequest(locationUrl); // Uncomment and replace with actual logic
-
-                        Road.Text = _geoCodeLocation!.Road;
-                        City.Text = _geoCodeLocation.City;
-                        County.Text = _geoCodeLocation.County;
-                        State.Text = _geoCodeLocation.State;
-                    });
-                });
-            }
+                if (_lastLocationOverlay is null) return;
+                if (!string.IsNullOrWhiteSpace(_lastLocationOverlay.Road)) Road.Text = _lastLocationOverlay.Road;
+                if (!string.IsNullOrWhiteSpace(_lastLocationOverlay.City)) City.Text = _lastLocationOverlay.City;
+                if (!string.IsNullOrWhiteSpace(_lastLocationOverlay.State)) State.Text = _lastLocationOverlay.State;
+            });
         }
         private async void StartGPS_OnClick(object sender, RoutedEventArgs e)
         {
@@ -788,6 +820,27 @@ namespace ThunderApp
         private void MenuItem_About_Click(object sender, RoutedEventArgs e)
         {
             throw new NotImplementedException();
+        }
+
+        private async Task RefreshLocationOverlayAsync(GeoPoint gps)
+        {
+            if (_locationOverlayService is null) return;
+            try
+            {
+                _lastLocationOverlay = await _locationOverlayService.GetSnapshotAsync(gps, _appCts?.Token ?? CancellationToken.None);
+
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    if (_lastLocationOverlay is null) return;
+                    if (!string.IsNullOrWhiteSpace(_lastLocationOverlay.Road))
+                        Road.Text = _lastLocationOverlay.Road;
+                    if (!string.IsNullOrWhiteSpace(_lastLocationOverlay.City))
+                        City.Text = _lastLocationOverlay.City;
+                    if (!string.IsNullOrWhiteSpace(_lastLocationOverlay.State))
+                        State.Text = _lastLocationOverlay.State;
+                });
+            }
+            catch { }
         }
 
         private void OpenAlertFilters_Executed(object sender, System.Windows.Input.ExecutedRoutedEventArgs e)
