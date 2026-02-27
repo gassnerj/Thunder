@@ -26,6 +26,7 @@
     <ItemGroup>
       <ProjectReference Include="..\GeoJsonWeather\GeoJsonWeather.csproj" />
       <ProjectReference Include="..\MeteorologyCore\MeteorologyCore.csproj" />
+      <ProjectReference Include="..\ThunderApp\ThunderApp.csproj" />
     </ItemGroup>
 
 </Project>

@@ -47,6 +47,7 @@ public partial class AlertFilterSettings : ObservableObject
     [ObservableProperty] private bool showSpcDay1 = false;
     [ObservableProperty] private bool showSpcDay2 = false;
     [ObservableProperty] private bool showSpcDay3 = false;
+    [ObservableProperty] private bool showWeatherStations = true;
 
     // -----------------------------
     // Map styling
