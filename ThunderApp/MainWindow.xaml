@@ -241,6 +241,12 @@
             <MenuItem Header="_View">
                 <MenuItem Header="Alert _Filters..." Command="ApplicationCommands.Find" InputGestureText="Ctrl+F" />
                 <MenuItem Header="Map _Styling..." Click="OpenMapStyling_OnClick" InputGestureText="Ctrl+M" />
+                <Separator />
+                <MenuItem Header="Pressure Units">
+                    <MenuItem x:Name="InHgUnitMenuItem" Header="inHg" IsCheckable="True" IsChecked="True" Click="PressureUnitInHg_OnClick" />
+                    <MenuItem x:Name="HpaUnitMenuItem" Header="hPa" IsCheckable="True" Click="PressureUnitHpa_OnClick" />
+                    <MenuItem x:Name="PaUnitMenuItem" Header="Pa" IsCheckable="True" Click="PressureUnitPa_OnClick" />
+                </MenuItem>
             </MenuItem>
             <MenuItem Header="_Tools" />
             <MenuItem Header="_Help" />
@@ -345,26 +351,49 @@
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" /> <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" /> <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" /> <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" /> <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" /> <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" /> <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0" Grid.Column="0" Foreground="{StaticResource Muted}" Text="Temp" />
-                                <TextBlock Grid.Row="0" Grid.Column="1" Name="AirTemperature" Text="—" />
-                                <TextBlock Grid.Row="1" Grid.Column="0" Foreground="{StaticResource Muted}"
-                                           Text="Dew Point" />
-                                <TextBlock Grid.Row="1" Grid.Column="1" Name="DewPoint" Text="—" />
-                                <TextBlock Grid.Row="2" Grid.Column="0" Foreground="{StaticResource Muted}" Text="Wind" />
-                                <TextBlock Grid.Row="2" Grid.Column="1" Name="Wind" Text="—" />
-                                <TextBlock Grid.Row="3" Grid.Column="0" Foreground="{StaticResource Muted}"
-                                           Text="Last Update" />
-                                <TextBlock Grid.Row="3" Grid.Column="1" Name="LastUpdate" Text="—" />
+                                <TextBlock Grid.Row="0" Grid.Column="0" Foreground="{StaticResource Muted}" Text="Station ID" />
+                                <TextBlock Grid.Row="0" Grid.Column="1" Name="ActiveStation" Text="—" />
+                                <TextBlock Grid.Row="1" Grid.Column="0" Foreground="{StaticResource Muted}" Text="Station Name" />
+                                <TextBlock Grid.Row="1" Grid.Column="1" Name="StationName" Text="—" TextWrapping="Wrap" />
+                                <TextBlock Grid.Row="2" Grid.Column="0" Foreground="{StaticResource Muted}" Text="Station TZ" />
+                                <TextBlock Grid.Row="2" Grid.Column="1" Name="StationTz" Text="—" />
+                                <TextBlock Grid.Row="3" Grid.Column="0" Foreground="{StaticResource Muted}" Text="Temp" />
+                                <TextBlock Grid.Row="3" Grid.Column="1" Name="AirTemperature" Text="—" />
+                                <TextBlock Grid.Row="4" Grid.Column="0" Foreground="{StaticResource Muted}" Text="Dew Point" />
+                                <TextBlock Grid.Row="4" Grid.Column="1" Name="DewPoint" Text="—" />
+                                <TextBlock Grid.Row="5" Grid.Column="0" Foreground="{StaticResource Muted}" Text="Relative Humidity" />
+                                <TextBlock Grid.Row="5" Grid.Column="1" Name="RelativeHumidity" Text="—" />
+                                <TextBlock Grid.Row="6" Grid.Column="0" Foreground="{StaticResource Muted}" Text="Wind" />
+                                <TextBlock Grid.Row="6" Grid.Column="1" Name="Wind" Text="—" />
+                                <TextBlock Grid.Row="7" Grid.Column="0" Foreground="{StaticResource Muted}" Text="Wind Chill" />
+                                <TextBlock Grid.Row="7" Grid.Column="1" Name="WindChill" Text="—" />
+                                <TextBlock Grid.Row="8" Grid.Column="0" Foreground="{StaticResource Muted}" Text="Heat Index" />
+                                <TextBlock Grid.Row="8" Grid.Column="1" Name="HeatIndex" Text="—" />
+                                <TextBlock Grid.Row="9" Grid.Column="0" Foreground="{StaticResource Muted}" Text="Baro Pressure" />
+                                <TextBlock Grid.Row="9" Grid.Column="1" Name="BarometricPressure" Text="—" />
+                                <TextBlock Grid.Row="10" Grid.Column="0" Foreground="{StaticResource Muted}" Text="Sea-Level Pressure" />
+                                <TextBlock Grid.Row="10" Grid.Column="1" Name="SeaLevelPressure" Text="—" />
+                                <TextBlock Grid.Row="11" Grid.Column="0" Foreground="{StaticResource Muted}" Text="Last Update" />
+                                <TextBlock Grid.Row="11" Grid.Column="1" Name="LastUpdate" Text="—" />
                             </Grid>
                         </StackPanel>
                     </Border>
                     <Border Grid.Column="2" Style="{StaticResource Card}">
-                        <StackPanel>
-                            <TextBlock FontSize="16" FontWeight="SemiBold" Text="Trend" />
-                            <TextBlock Foreground="{StaticResource Muted}" Margin="0,0,0,10" Text="LiveCharts output." />
-                            <wpf:CartesianChart Name="DataChart" />
-                        </StackPanel>
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Grid.Row="0" FontSize="16" FontWeight="SemiBold" Text="Trend" />
+                            <TextBlock Grid.Row="1" Foreground="{StaticResource Muted}" Margin="0,0,0,10" Text="LiveCharts output." />
+                            <wpf:CartesianChart Grid.Row="2" Name="DataChart" />
+                        </Grid>
                     </Border>
                 </Grid>
             </TabItem>

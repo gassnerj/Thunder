@@ -50,6 +50,28 @@ namespace ThunderApp
         private Task? _wxStreamTask;
         private ThunderApp.Models.GeoPoint? _wxStreamAnchor;
 
+        private enum PressureDisplayUnit { InHg, HPa, Pa }
+        private PressureDisplayUnit _pressureUnit = PressureDisplayUnit.InHg;
+        private int _wxConsecutiveFailures;
+        private DateTime _wxBackoffUntilUtc = DateTime.MinValue;
+
+
+        private static TimeSpan ComputeWxBackoff(int failures, bool isForbidden)
+        {
+            int exp = Math.Min(6, Math.Max(0, failures - 1));
+            int seconds = (int)Math.Pow(2, exp); // 1,2,4,8,16,32,64
+            if (isForbidden)
+                seconds = Math.Max(15, seconds);
+
+            return TimeSpan.FromSeconds(Math.Min(120, seconds));
+        }
+
+        private void ResetWxBackoff()
+        {
+            _wxConsecutiveFailures = 0;
+            _wxBackoffUntilUtc = DateTime.MinValue;
+        }
+
         public MainWindow()
         {
             InitializeComponent();
@@ -224,13 +246,22 @@ namespace ThunderApp
 
                     if (needRestart)
                     {
-                        try { _wxStreamCts?.Cancel(); } catch { }
-                        _wxStreamCts?.Dispose();
+                        var nowUtc = DateTime.UtcNow;
+                        if (nowUtc < _wxBackoffUntilUtc)
+                        {
+                            var remaining = (_wxBackoffUntilUtc - nowUtc).TotalSeconds;
+                            DiskLogService.Current?.Log($"WX: backoff active, delaying restart for {Math.Ceiling(remaining)}s");
+                        }
+                        else
+                        {
+                            try { _wxStreamCts?.Cancel(); } catch { }
+                            _wxStreamCts?.Dispose();
 
-                        _wxStreamCts = CancellationTokenSource.CreateLinkedTokenSource(appCt);
-                        _wxStreamAnchor = loc;
+                            _wxStreamCts = CancellationTokenSource.CreateLinkedTokenSource(appCt);
+                            _wxStreamAnchor = loc;
 
-                        _wxStreamTask = Task.Run(() => ConsumeObservationStreamAsync(loc.Value, _wxStreamCts.Token), _wxStreamCts.Token);
+                            _wxStreamTask = Task.Run(() => ConsumeObservationStreamAsync(loc.Value, _wxStreamCts.Token), _wxStreamCts.Token);
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -250,9 +281,10 @@ namespace ThunderApp
             try
             {
                 DiskLogService.Current?.Log($"WX: ConsumeObservationStreamAsync start loc={loc.Lat:0.0000},{loc.Lon:0.0000}");
-                await foreach (ObservationModel? model in ObservationManager.GetNearestObservations(loc.Lat, loc.Lon, ct))
+                await foreach (var snapshot in ObservationManager.GetNearestObservations(loc.Lat, loc.Lon, ct))
                 {
                     if (ct.IsCancellationRequested) break;
+                    var model = snapshot.Observation;
                     if (model is null) continue;
 
                     if (!_wxLoggedFirstObs)
@@ -260,6 +292,15 @@ namespace ThunderApp
                         _wxLoggedFirstObs = true;
                         DiskLogService.Current?.Log($"WX: first obs ts={model.Timestamp:o} tempC={model.Temperature.Value} dpC={model.DewPoint.Value}");
                     }
+
+                    if (_wxConsecutiveFailures > 0)
+                        DiskLogService.Current?.Log("WX: stream recovered; clearing backoff state");
+                    ResetWxBackoff();
+
+                    if (snapshot.ActiveStation?.StationIdentifier is string sid)
+                        DiskLogService.Current?.Log($"WX active station id={sid} name={snapshot.ActiveStation.Name}");
+
+                    _ = Dashboard?.SetWeatherStationsOnMapAsync(snapshot.Stations, snapshot.ActiveStation, model, snapshot.StationObservations);
 
                     // Never block the UI thread: BeginInvoke instead of Invoke.
                     Dispatcher.BeginInvoke(new Action(() =>
@@ -276,6 +317,15 @@ namespace ThunderApp
                                 Wind.Text = "--";
 
                             LastUpdate.Text = model.Timestamp.ToLocalTime().ToString(CultureInfo.CurrentCulture);
+
+                            ActiveStation.Text = snapshot.ActiveStation?.StationIdentifier ?? "--";
+                            StationName.Text = snapshot.ActiveStation?.Name ?? "--";
+                            StationTz.Text = snapshot.ActiveStation?.TimeZone ?? "--";
+                            RelativeHumidity.Text = $"{Math.Round(model.RelativeHumidity)}%";
+                            HeatIndex.Text = model.HeatIndex is not null ? model.HeatIndex.ToFahrenheit().ToString() : "--";
+                            WindChill.Text = model.WindChill is not null ? model.WindChill.ToFahrenheit().ToString() : "--";
+                            BarometricPressure.Text = FormatPressure(model.BarometricPressure);
+                            SeaLevelPressure.Text = FormatPressure(model.SeaLevelPressure);
 
                             if (model.Temperature.ToFahrenheit().Value is double t)
                                 temperatureData.Add(t);
@@ -298,6 +348,15 @@ namespace ThunderApp
             }
             catch (Exception ex)
             {
+                if (!ct.IsCancellationRequested)
+                {
+                    _wxConsecutiveFailures++;
+                    bool isForbidden = ex is HttpRequestException hre && hre.Message.Contains("HTTP 403", StringComparison.OrdinalIgnoreCase);
+                    var delay = ComputeWxBackoff(_wxConsecutiveFailures, isForbidden);
+                    _wxBackoffUntilUtc = DateTime.UtcNow.Add(delay);
+                    DiskLogService.Current?.Log($"WX: stream failure {_wxConsecutiveFailures}; backoff {delay.TotalSeconds:0}s (forbidden={isForbidden})");
+                }
+
                 // If the stream dies early (points/zone/station fetch), surface it.
                 Dispatcher.BeginInvoke(new Action(() =>
                 {
@@ -307,6 +366,14 @@ namespace ThunderApp
                         DewPoint.Text = "--";
                         Wind.Text = "--";
                         LastUpdate.Text = "WX error";
+                        ActiveStation.Text = "--";
+                        StationName.Text = "--";
+                        StationTz.Text = "--";
+                        RelativeHumidity.Text = "--";
+                        HeatIndex.Text = "--";
+                        WindChill.Text = "--";
+                        BarometricPressure.Text = "--";
+                        SeaLevelPressure.Text = "--";
                     }
                     catch { }
                 }));
@@ -314,6 +381,31 @@ namespace ThunderApp
                 DiskLogService.Current?.LogException("WX stream", ex);
             }
         }
+
+
+        private string FormatPressure(MeteorologyCore.Pressure? p)
+        {
+            if (p is null) return "--";
+            double pa = p.Value;
+            return _pressureUnit switch
+            {
+                PressureDisplayUnit.HPa => $"{(pa / 100.0):0.00} hPa",
+                PressureDisplayUnit.Pa => $"{pa:0.0} Pa",
+                _ => $"{(pa / 3386.389):0.00} inHg"
+            };
+        }
+
+        private void SetPressureUnit(PressureDisplayUnit unit)
+        {
+            _pressureUnit = unit;
+            InHgUnitMenuItem.IsChecked = unit == PressureDisplayUnit.InHg;
+            HpaUnitMenuItem.IsChecked = unit == PressureDisplayUnit.HPa;
+            PaUnitMenuItem.IsChecked = unit == PressureDisplayUnit.Pa;
+        }
+
+        private void PressureUnitInHg_OnClick(object sender, RoutedEventArgs e) => SetPressureUnit(PressureDisplayUnit.InHg);
+        private void PressureUnitHpa_OnClick(object sender, RoutedEventArgs e) => SetPressureUnit(PressureDisplayUnit.HPa);
+        private void PressureUnitPa_OnClick(object sender, RoutedEventArgs e) => SetPressureUnit(PressureDisplayUnit.Pa);
 
         private void InitializeGPS()
         {
