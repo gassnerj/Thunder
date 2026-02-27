@@ -278,9 +278,10 @@ namespace ThunderApp
             try
             {
                 DiskLogService.Current?.Log($"WX: ConsumeObservationStreamAsync start loc={loc.Lat:0.0000},{loc.Lon:0.0000}");
-                await foreach (ObservationModel? model in ObservationManager.GetNearestObservations(loc.Lat, loc.Lon, ct))
+                await foreach (var snapshot in ObservationManager.GetNearestObservations(loc.Lat, loc.Lon, ct))
                 {
                     if (ct.IsCancellationRequested) break;
+                    var model = snapshot.Observation;
                     if (model is null) continue;
 
                     if (!_wxLoggedFirstObs)
@@ -292,6 +293,11 @@ namespace ThunderApp
                     if (_wxConsecutiveFailures > 0)
                         DiskLogService.Current?.Log("WX: stream recovered; clearing backoff state");
                     ResetWxBackoff();
+
+                    if (snapshot.ActiveStation?.StationIdentifier is string sid)
+                        DiskLogService.Current?.Log($"WX active station id={sid} name={snapshot.ActiveStation.Name}");
+
+                    _ = Dashboard?.SetWeatherStationsOnMapAsync(snapshot.Stations, snapshot.ActiveStation, model);
 
                     // Never block the UI thread: BeginInvoke instead of Invoke.
                     Dispatcher.BeginInvoke(new Action(() =>
@@ -308,6 +314,15 @@ namespace ThunderApp
                                 Wind.Text = "--";
 
                             LastUpdate.Text = model.Timestamp.ToLocalTime().ToString(CultureInfo.CurrentCulture);
+
+                            ActiveStation.Text = snapshot.ActiveStation?.StationIdentifier ?? "--";
+                            StationName.Text = snapshot.ActiveStation?.Name ?? "--";
+                            StationTz.Text = snapshot.ActiveStation?.TimeZone ?? "--";
+                            RelativeHumidity.Text = $"{Math.Round(model.RelativeHumidity)}%";
+                            HeatIndex.Text = model.HeatIndex is not null ? model.HeatIndex.ToFahrenheit().ToString() : "--";
+                            WindChill.Text = model.WindChill is not null ? model.WindChill.ToFahrenheit().ToString() : "--";
+                            BarometricPressure.Text = model.BarometricPressure?.ToString() ?? "--";
+                            SeaLevelPressure.Text = model.SeaLevelPressure?.ToString() ?? "--";
 
                             if (model.Temperature.ToFahrenheit().Value is double t)
                                 temperatureData.Add(t);
@@ -348,6 +363,14 @@ namespace ThunderApp
                         DewPoint.Text = "--";
                         Wind.Text = "--";
                         LastUpdate.Text = "WX error";
+                        ActiveStation.Text = "--";
+                        StationName.Text = "--";
+                        StationTz.Text = "--";
+                        RelativeHumidity.Text = "--";
+                        HeatIndex.Text = "--";
+                        WindChill.Text = "--";
+                        BarometricPressure.Text = "--";
+                        SeaLevelPressure.Text = "--";
                     }
                     catch { }
                 }));

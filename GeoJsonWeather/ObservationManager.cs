@@ -15,7 +15,7 @@ namespace GeoJsonWeather;
 
 public class ObservationManager
 {
-    public static async IAsyncEnumerable<ObservationModel?> GetNearestObservations(
+    public static async IAsyncEnumerable<StationObservationSnapshot> GetNearestObservations(
         double latitude,
         double longitude,
         [EnumeratorCancellation] CancellationToken ct = default)
@@ -89,7 +89,12 @@ public class ObservationManager
                 // Later we’ll add “last known good” + stale flag.
             }
 
-            yield return obs;
+            yield return new StationObservationSnapshot
+            {
+                Observation = obs,
+                ActiveStation = nearest,
+                Stations = stations
+            };
 
             // Delay AFTER yielding so you get an immediate first update.
             await Task.Delay(60000, ct);

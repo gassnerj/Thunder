@@ -13,6 +13,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using GeoJsonWeather.Api;
+using GeoJsonWeather.Models;
 using Microsoft.Web.WebView2.Core;
 using ThunderApp.Models;
 using ThunderApp.Services;
@@ -238,6 +239,46 @@ namespace ThunderApp.Views
                 await MapView.CoreWebView2.ExecuteScriptAsync($"setSpcOpacity({s.ToString(System.Globalization.CultureInfo.InvariantCulture)});");
             }
             catch { }
+        }
+
+
+        public async Task SetWeatherStationsOnMapAsync(IReadOnlyList<ObservationStationModel> stations, ObservationStationModel? activeStation, ObservationModel? activeObservation)
+        {
+            if (!_mapReady || MapView?.CoreWebView2 == null) return;
+
+            try
+            {
+                var payload = new
+                {
+                    activeStationId = activeStation?.StationIdentifier,
+                    stations = stations?.Select(s => new
+                    {
+                        id = s.StationIdentifier,
+                        name = s.Name,
+                        timeZone = s.TimeZone,
+                        lat = s.Coordinates.Latitude,
+                        lon = s.Coordinates.Longitude,
+                        isActive = string.Equals(s.StationIdentifier, activeStation?.StationIdentifier, StringComparison.OrdinalIgnoreCase),
+                        observation = activeObservation != null && string.Equals(s.StationIdentifier, activeStation?.StationIdentifier, StringComparison.OrdinalIgnoreCase)
+                            ? new
+                            {
+                                timestamp = activeObservation.Timestamp,
+                                tempF = activeObservation.Temperature?.ToFahrenheit().Value,
+                                dewF = activeObservation.DewPoint?.ToFahrenheit().Value,
+                                rh = activeObservation.RelativeHumidity,
+                                windMph = activeObservation.Wind?.Speed,
+                                windDir = activeObservation.Wind?.Direction?.ToString()
+                            }
+                            : null
+                    })
+                };
+
+                string json = JsonSerializer.Serialize(payload);
+                await MapView.CoreWebView2.ExecuteScriptAsync($"setWeatherStations({json});");
+            }
+            catch
+            {
+            }
         }
 
 private void ApplySavedAlertsMapSplit()

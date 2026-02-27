@@ -315,6 +315,50 @@ window.setSpcOpacity = function(v){
         }
     };
 
+
+    // =======================
+    // Weather stations (ASOS)
+    // =======================
+    const wxStations = {
+        layer: L.layerGroup().addTo(map),
+        byId: new Map(),
+        activeId: null
+    };
+
+    function formatObsPopup(st) {
+        const obs = st?.observation;
+        if (!obs) return '<div style="font-size:12px;color:#cbd5e1">No current observation</div>';
+        const f = (v, d=1) => (typeof v === 'number' && Number.isFinite(v)) ? Number(v).toFixed(d) : '--';
+        const rh = (typeof obs.rh === 'number' && Number.isFinite(obs.rh)) ? `${Math.round(obs.rh)}%` : '--';
+        return `<div style="font-size:12px;line-height:1.35"><div><b>Temp:</b> ${f(obs.tempF)} °F</div><div><b>Dew Point:</b> ${f(obs.dewF)} °F</div><div><b>RH:</b> ${rh}</div><div><b>Wind:</b> ${f(obs.windMph)} mph ${obs.windDir || ''}</div><div><b>Obs Time:</b> ${obs.timestamp ? new Date(obs.timestamp).toLocaleString() : '--'}</div></div>`;
+    }
+
+    window.setWeatherStations = function(payload) {
+        if (!payload || !Array.isArray(payload.stations)) return;
+
+        wxStations.layer.clearLayers();
+        wxStations.byId.clear();
+        wxStations.activeId = payload.activeStationId || null;
+
+        for (const st of payload.stations) {
+            if (typeof st?.lat !== 'number' || typeof st?.lon !== 'number') continue;
+            const isActive = !!st.isActive;
+            const marker = L.circleMarker([st.lat, st.lon], {
+                radius: isActive ? 7 : 5,
+                weight: isActive ? 2 : 1,
+                color: isActive ? '#f97316' : '#38bdf8',
+                fillColor: isActive ? '#fb923c' : '#7dd3fc',
+                fillOpacity: isActive ? 0.95 : 0.75,
+                opacity: 0.95
+            });
+
+            const title = `<div style="font-weight:600">${st.id || 'Station'} — ${st.name || ''}</div><div style="font-size:12px;color:#94a3b8">${st.timeZone || ''}</div>`;
+            marker.bindPopup(`<div style="min-width:280px;max-width:420px">${title}${formatObsPopup(st)}</div>`);
+            marker.addTo(wxStations.layer);
+            if (st.id) wxStations.byId.set(st.id, marker);
+        }
+    };
+
     // =======================
     // Disable follow on user movement
     // =======================
