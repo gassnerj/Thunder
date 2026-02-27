@@ -321,8 +321,8 @@ namespace ThunderApp
                             RelativeHumidity.Text = $"{Math.Round(model.RelativeHumidity)}%";
                             HeatIndex.Text = model.HeatIndex is not null ? model.HeatIndex.ToFahrenheit().ToString() : "--";
                             WindChill.Text = model.WindChill is not null ? model.WindChill.ToFahrenheit().ToString() : "--";
-                            BarometricPressure.Text = model.BarometricPressure?.ToString() ?? "--";
-                            SeaLevelPressure.Text = model.SeaLevelPressure?.ToString() ?? "--";
+                            BarometricPressure.Text = model.BarometricPressure is not null ? $"{model.BarometricPressure.Value:0.0} Pa" : "--";
+                            SeaLevelPressure.Text = model.SeaLevelPressure is not null ? $"{model.SeaLevelPressure.Value:0.0} Pa" : "--";
 
                             if (model.Temperature.ToFahrenheit().Value is double t)
                                 temperatureData.Add(t);

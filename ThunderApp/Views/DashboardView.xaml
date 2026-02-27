@@ -397,7 +397,12 @@
         <!-- ================= LEFT COLUMN (Filters) ================= -->
 
         <Border Grid.Column="0" Style="{StaticResource DashCard}" >
-            <StackPanel>
+            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
+                <ScrollViewer.Resources>
+                    <Style TargetType="{x:Type ScrollBar}" BasedOn="{StaticResource ThinScrollBar}" />
+                </ScrollViewer.Resources>
+                <StackPanel>
 
                 <TextBlock Style="{StaticResource DashHeader}"
                            Text="Controls"
@@ -573,7 +578,8 @@
                 <TextBlock Style="{StaticResource DashMuted}"
                            Text="{Binding RefreshInfo}"
                            Margin="0,6,0,0" />
-            </StackPanel>
+                </StackPanel>
+            </ScrollViewer>
         </Border>
 
         <!-- ================= RIGHT COLUMN (Alerts + Map) ================= -->

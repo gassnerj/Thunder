@@ -284,7 +284,17 @@ namespace ThunderApp.Views
         }
 
 
-        public async Task SetWeatherStationsOnMapAsync(IReadOnlyList<ObservationStationModel> stations, ObservationStationModel? activeStation, ObservationModel? activeObservation)
+        public Task SetWeatherStationsOnMapAsync(IReadOnlyList<ObservationStationModel> stations, ObservationStationModel? activeStation, ObservationModel? activeObservation)
+        {
+            if (!Dispatcher.CheckAccess())
+            {
+                return Dispatcher.InvokeAsync(() => SetWeatherStationsOnMapAsync(stations, activeStation, activeObservation)).Task.Unwrap();
+            }
+
+            return SetWeatherStationsOnMapCoreAsync(stations, activeStation, activeObservation);
+        }
+
+        private async Task SetWeatherStationsOnMapCoreAsync(IReadOnlyList<ObservationStationModel> stations, ObservationStationModel? activeStation, ObservationModel? activeObservation)
         {
             if (!_mapReady || MapView?.CoreWebView2 == null) return;
 
