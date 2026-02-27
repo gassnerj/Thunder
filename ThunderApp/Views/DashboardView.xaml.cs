@@ -132,9 +132,9 @@ namespace ThunderApp.Views
                         {
                             try
                             {
-                                var p = _vm?.CurrentLocation;
-                                if (p != null)
-                                    await UpdateMapLocationAsync(p.Lat, p.Lon, DefaultZoom, addTrail: true);
+                                var pointObj = (object?)_vm?.CurrentLocation;
+                                if (TryExtractLatLon(pointObj, out double lat, out double lon))
+                                    await UpdateMapLocationAsync(lat, lon, DefaultZoom, addTrail: true);
                             }
                             catch { }
                         }));
@@ -198,6 +198,43 @@ namespace ThunderApp.Views
                 // Apply split once we have settings.
                 ApplySavedAlertsMapSplit();
             }
+        }
+
+
+        private static bool TryExtractLatLon(object? pointObj, out double lat, out double lon)
+        {
+            lat = 0;
+            lon = 0;
+            if (pointObj is null) return false;
+
+            // Direct Lat/Lon properties.
+            var pType = pointObj.GetType();
+            var latProp = pType.GetProperty("Lat") ?? pType.GetProperty("Latitude");
+            var lonProp = pType.GetProperty("Lon") ?? pType.GetProperty("Longitude");
+            if (latProp != null && lonProp != null)
+            {
+                if (double.TryParse(latProp.GetValue(pointObj)?.ToString(), out lat) &&
+                    double.TryParse(lonProp.GetValue(pointObj)?.ToString(), out lon))
+                    return true;
+            }
+
+            // Nullable-wrapper style: point.Value.Lat / point.Value.Lon.
+            var valueProp = pType.GetProperty("Value");
+            var valueObj = valueProp?.GetValue(pointObj);
+            if (valueObj != null)
+            {
+                var vType = valueObj.GetType();
+                var vLat = vType.GetProperty("Lat") ?? vType.GetProperty("Latitude");
+                var vLon = vType.GetProperty("Lon") ?? vType.GetProperty("Longitude");
+                if (vLat != null && vLon != null)
+                {
+                    if (double.TryParse(vLat.GetValue(valueObj)?.ToString(), out lat) &&
+                        double.TryParse(vLon.GetValue(valueObj)?.ToString(), out lon))
+                        return true;
+                }
+            }
+
+            return false;
         }
 
         private async Task UpdateSeverityOutlineOnMapAsync()
@@ -284,6 +321,16 @@ namespace ThunderApp.Views
             catch
             {
             }
+        }
+
+
+        private async Task UpdateWeatherStationsVisibilityOnMapAsync()
+        {
+            if (!_mapReady || MapView?.CoreWebView2 == null) return;
+            _vm ??= DataContext as DashboardViewModel;
+            if (_vm?.FilterSettings == null) return;
+
+            await MapView.CoreWebView2.ExecuteScriptAsync($"setWeatherStationsVisible({(_vm.FilterSettings.ShowWeatherStations ? "true" : "false")});");
         }
 
 private void ApplySavedAlertsMapSplit()
