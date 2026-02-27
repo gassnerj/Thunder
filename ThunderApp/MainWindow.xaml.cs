@@ -247,6 +247,7 @@ namespace ThunderApp
             {
                 snapshot.sourceActive = "VehicleLocalUnavailable";
                 snapshot.observation = null;
+                snapshot.rows = BuildSnapshotRows(snapshot);
                 return snapshot;
             }
 
@@ -254,6 +255,7 @@ namespace ThunderApp
             if (obs is null)
             {
                 snapshot.observation = null;
+                snapshot.rows = BuildSnapshotRows(snapshot);
                 return snapshot;
             }
 
@@ -274,7 +276,42 @@ namespace ThunderApp
                 SeaLevelPressureInHg = obs.SeaLevelPressure is not null ? obs.SeaLevelPressure.Value / 3386.389 : null,
             };
 
+            snapshot.rows = BuildSnapshotRows(snapshot);
+
             return snapshot;
+        }
+
+
+        private static IReadOnlyList<VmixSnapshotRowDto> BuildSnapshotRows(VmixApiSnapshot snapshot)
+        {
+            var obs = snapshot.observation;
+            return new[]
+            {
+                new VmixSnapshotRowDto
+                {
+                    GeneratedAtUtc = snapshot.generatedAtUtc,
+                    SourceRequested = snapshot.sourceRequested,
+                    SourceActive = snapshot.sourceActive,
+                    UseRadiusFilter = snapshot.useRadiusFilter,
+                    RadiusMiles = snapshot.radiusMiles,
+                    CenterLat = snapshot.centerLat,
+                    CenterLon = snapshot.centerLon,
+                    WarningCount = snapshot.warnings?.Count ?? 0,
+                    StationId = obs?.StationId ?? "",
+                    StationName = obs?.StationName ?? "",
+                    TimeZone = obs?.TimeZone ?? "",
+                    ObservationTimestampUtc = obs?.TimestampUtc,
+                    TemperatureF = obs?.TemperatureF,
+                    DewPointF = obs?.DewPointF,
+                    RelativeHumidity = obs?.RelativeHumidity,
+                    WindMph = obs?.WindMph,
+                    WindDirection = obs?.WindDirection ?? "",
+                    HeatIndexF = obs?.HeatIndexF,
+                    WindChillF = obs?.WindChillF,
+                    BarometricPressureInHg = obs?.BarometricPressureInHg,
+                    SeaLevelPressureInHg = obs?.SeaLevelPressureInHg,
+                }
+            };
         }
 
         private void MainWindow_Closed(object? sender, EventArgs e)

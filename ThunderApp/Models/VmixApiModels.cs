@@ -35,6 +35,36 @@ public sealed class VmixObservationDto
     public double? SeaLevelPressureInHg { get; set; }
 }
 
+
+public sealed class VmixSnapshotRowDto
+{
+    public DateTime GeneratedAtUtc { get; set; }
+    public string SourceRequested { get; set; } = "";
+    public string SourceActive { get; set; } = "";
+
+    public bool UseRadiusFilter { get; set; }
+    public double RadiusMiles { get; set; }
+    public double? CenterLat { get; set; }
+    public double? CenterLon { get; set; }
+
+    public int WarningCount { get; set; }
+
+    public string StationId { get; set; } = "";
+    public string StationName { get; set; } = "";
+    public string TimeZone { get; set; } = "";
+    public DateTime? ObservationTimestampUtc { get; set; }
+
+    public double? TemperatureF { get; set; }
+    public double? DewPointF { get; set; }
+    public double? RelativeHumidity { get; set; }
+    public double? WindMph { get; set; }
+    public string WindDirection { get; set; } = "";
+    public double? HeatIndexF { get; set; }
+    public double? WindChillF { get; set; }
+    public double? BarometricPressureInHg { get; set; }
+    public double? SeaLevelPressureInHg { get; set; }
+}
+
 public sealed class VmixApiSnapshot
 {
     public DateTime generatedAtUtc { get; set; }
@@ -49,4 +79,5 @@ public sealed class VmixApiSnapshot
 
     public VmixObservationDto? observation { get; set; }
     public IReadOnlyList<VmixWarningDto> warnings { get; set; } = [];
+    public IReadOnlyList<VmixSnapshotRowDto> rows { get; set; } = [];
 }

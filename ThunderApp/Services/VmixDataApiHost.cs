@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Net;
 using System.Text;
 using System.Text.Json;
@@ -98,19 +99,23 @@ public sealed class VmixDataApiHost : IDisposable
                 {
                     "/api/v1/vmix/health",
                     "/api/v1/vmix/snapshot",
+                    "/api/v1/vmix/table",
                     "/api/v1/vmix/warnings",
+                    "/api/v1/vmix/warnings/table",
                     "/api/v1/vmix/observation"
                 },
                 snapshot.generatedAtUtc
             },
             "/api/v1/vmix/health" => new { ok = true, snapshot.generatedAtUtc, snapshot.sourceRequested, snapshot.sourceActive },
-            "/api/v1/vmix/warnings" => new { snapshot.generatedAtUtc, snapshot.radiusMiles, snapshot.useRadiusFilter, warnings = snapshot.warnings },
-            "/api/v1/vmix/observation" => new { snapshot.generatedAtUtc, snapshot.sourceRequested, snapshot.sourceActive, snapshot.vehicleStationAvailable, observation = snapshot.observation },
+            "/api/v1/vmix/warnings" => new { snapshot.generatedAtUtc, snapshot.radiusMiles, snapshot.useRadiusFilter, warnings = snapshot.warnings, rows = EnsureWarningsTable(snapshot) },
+            "/api/v1/vmix/warnings/table" => EnsureWarningsTable(snapshot),
+            "/api/v1/vmix/observation" => new { snapshot.generatedAtUtc, snapshot.sourceRequested, snapshot.sourceActive, snapshot.vehicleStationAvailable, observation = snapshot.observation, rows = snapshot.rows },
             "/api/v1/vmix/snapshot" => snapshot,
+            "/api/v1/vmix/table" => snapshot.rows,
             _ => new { ok = false, error = "not_found" }
         };
 
-        int status = path is "/" or "/api/v1/vmix/health" or "/api/v1/vmix/warnings" or "/api/v1/vmix/observation" or "/api/v1/vmix/snapshot"
+        int status = path is "/" or "/api/v1/vmix/health" or "/api/v1/vmix/warnings" or "/api/v1/vmix/warnings/table" or "/api/v1/vmix/observation" or "/api/v1/vmix/snapshot" or "/api/v1/vmix/table"
             ? 200 : 404;
 
         string json = JsonSerializer.Serialize(payload, _jsonOptions);
@@ -122,6 +127,25 @@ public sealed class VmixDataApiHost : IDisposable
         ctx.Response.ContentLength64 = bytes.Length;
         await ctx.Response.OutputStream.WriteAsync(bytes, 0, bytes.Length);
         ctx.Response.Close();
+    }
+
+    private static IReadOnlyList<VmixWarningDto> EnsureWarningsTable(VmixApiSnapshot snapshot)
+    {
+        if (snapshot.warnings is { Count: > 0 })
+            return snapshot.warnings;
+
+        return new[]
+        {
+            new VmixWarningDto
+            {
+                Id = "",
+                Event = "",
+                Headline = "",
+                Severity = "",
+                Urgency = "",
+                AreaDescription = ""
+            }
+        };
     }
 
     private static string EnsureTrailingSlash(string prefix)
