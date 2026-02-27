@@ -47,6 +47,7 @@ namespace ThunderApp.Views
         private int _alertsUpdateVersion;
 
         private SpcOutlookTextWindow? _spcTextWindow;
+        private UnitSettings _unitSettings = new();
 
         public DashboardView()
         {
@@ -98,6 +99,19 @@ namespace ThunderApp.Views
                 _http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/geo+json"));
                 _http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
             }
+        }
+
+        public async Task SetUnitSettingsAsync(UnitSettings settings)
+        {
+            _unitSettings = settings?.Clone() ?? new UnitSettings();
+            await ApplyMapThemeAsync();
+        }
+
+        public async Task ApplyMapThemeAsync()
+        {
+            if (!_mapReady || MapView?.CoreWebView2 == null) return;
+            string theme = _unitSettings.MapTheme == MapTheme.Dark ? "dark" : "light";
+            await MapView.CoreWebView2.ExecuteScriptAsync($"setMapTheme('{theme}');");
         }
 
         private void DashboardView_DataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
@@ -172,7 +186,7 @@ namespace ThunderApp.Views
                     if (args.PropertyName is nameof(AlertFilterSettings.MapSplitRatio))
                     {
                         ApplySavedAlertsMapSplit();
-                _ = UpdateMapStylingOnMapAsync();
+                        _ = UpdateMapStylingOnMapAsync();
                     }
 
                     if (args.PropertyName is nameof(AlertFilterSettings.ShowSeverityOutline)
@@ -315,23 +329,31 @@ namespace ThunderApp.Views
                             ? new
                             {
                                 timestamp = obsModel.Timestamp,
-                                tempF = obsModel.Temperature?.ToFahrenheit().Value,
-                                dewF = obsModel.DewPoint?.ToFahrenheit().Value,
+                                temp = ConvertTemperature(obsModel.Temperature),
+                                tempUnit = TemperatureUnitLabel(),
+                                dew = ConvertTemperature(obsModel.DewPoint),
+                                dewUnit = TemperatureUnitLabel(),
                                 rh = obsModel.RelativeHumidity,
-                                windMph = obsModel.Wind?.Speed,
+                                wind = ConvertWind(obsModel.Wind?.Speed),
+                                windUnit = WindUnitLabel(),
                                 windDir = obsModel.Wind?.Direction?.ToString(),
-                                pressureInHg = obsModel.BarometricPressure is not null ? (obsModel.BarometricPressure.Value / 3386.389) : (double?)null
+                                pressure = ConvertPressure(obsModel.BarometricPressure),
+                                pressureUnit = PressureUnitLabel()
                             }
                             : (activeObservation != null && string.Equals(s.StationIdentifier, activeStation?.StationIdentifier, StringComparison.OrdinalIgnoreCase)
                                 ? new
                                 {
                                     timestamp = activeObservation.Timestamp,
-                                    tempF = activeObservation.Temperature?.ToFahrenheit().Value,
-                                    dewF = activeObservation.DewPoint?.ToFahrenheit().Value,
+                                    temp = ConvertTemperature(activeObservation.Temperature),
+                                    tempUnit = TemperatureUnitLabel(),
+                                    dew = ConvertTemperature(activeObservation.DewPoint),
+                                    dewUnit = TemperatureUnitLabel(),
                                     rh = activeObservation.RelativeHumidity,
-                                    windMph = activeObservation.Wind?.Speed,
+                                    wind = ConvertWind(activeObservation.Wind?.Speed),
+                                    windUnit = WindUnitLabel(),
                                     windDir = activeObservation.Wind?.Direction?.ToString(),
-                                    pressureInHg = activeObservation.BarometricPressure is not null ? (activeObservation.BarometricPressure.Value / 3386.389) : (double?)null
+                                    pressure = ConvertPressure(activeObservation.BarometricPressure),
+                                    pressureUnit = PressureUnitLabel()
                                 }
                                 : null)
                     })
@@ -344,6 +366,55 @@ namespace ThunderApp.Views
             {
             }
         }
+
+        private double? ConvertTemperature(MeteorologyCore.Temperature? t)
+        {
+            if (t?.Value is not double celsius) return null;
+            return _unitSettings.TemperatureUnit == TemperatureUnit.Celsius
+                ? celsius
+                : t.ToFahrenheit().Value;
+        }
+
+        private string TemperatureUnitLabel()
+            => _unitSettings.TemperatureUnit == TemperatureUnit.Celsius ? "°C" : "°F";
+
+        private double? ConvertWind(double? mph)
+        {
+            if (mph is null) return null;
+            return _unitSettings.WindSpeedUnit switch
+            {
+                WindSpeedUnit.Kts => mph.Value * 0.868976,
+                WindSpeedUnit.Mps => mph.Value * 0.44704,
+                _ => mph.Value
+            };
+        }
+
+        private string WindUnitLabel()
+            => _unitSettings.WindSpeedUnit switch
+            {
+                WindSpeedUnit.Kts => "kt",
+                WindSpeedUnit.Mps => "m/s",
+                _ => "mph"
+            };
+
+        private double? ConvertPressure(MeteorologyCore.Pressure? p)
+        {
+            if (p?.Value is not double pa) return null;
+            return _unitSettings.PressureUnit switch
+            {
+                PressureUnit.HPa => pa / 100.0,
+                PressureUnit.Pa => pa,
+                _ => pa / 3386.389
+            };
+        }
+
+        private string PressureUnitLabel()
+            => _unitSettings.PressureUnit switch
+            {
+                PressureUnit.HPa => "hPa",
+                PressureUnit.Pa => "Pa",
+                _ => "inHg"
+            };
 
 
         private async Task UpdateWeatherStationsVisibilityOnMapAsync()
@@ -559,6 +630,7 @@ private void ApplySavedAlertsMapSplit()
                 _ = UpdateWeatherStationsVisibilityOnMapAsync();
                 // Push palette + severity visuals immediately on first load.
                 _ = UpdateMapStylingOnMapAsync();
+                _ = ApplyMapThemeAsync();
             };
 
             MapView.Source = new Uri("https://app/map.html");

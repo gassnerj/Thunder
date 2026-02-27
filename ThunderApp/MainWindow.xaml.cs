@@ -6,6 +6,7 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Input;
 using System.Windows.Threading;
 using GeoJsonWeather;
 using GeoJsonWeather.Models;
@@ -72,6 +73,35 @@ namespace ThunderApp
         private enum PressureDisplayUnit { InHg, HPa, Pa }
         private PressureDisplayUnit _pressureUnit = PressureDisplayUnit.InHg;
 
+        private readonly JsonSettingsService<UnitSettings> _unitSettingsStore = new("unitSettings.json");
+        private UnitSettings _unitSettings = new();
+        private int _wxConsecutiveFailures;
+        private DateTime _wxBackoffUntilUtc = DateTime.MinValue;
+
+
+
+        public static readonly RoutedUICommand OpenUnitSettingsCommand = new(
+            "Units and Theme",
+            nameof(OpenUnitSettingsCommand),
+            typeof(MainWindow),
+            new InputGestureCollection { new KeyGesture(Key.U, ModifierKeys.Control) });
+
+        private static TimeSpan ComputeWxBackoff(int failures, bool isForbidden)
+        {
+            int exp = Math.Min(6, Math.Max(0, failures - 1));
+            int seconds = (int)Math.Pow(2, exp); // 1,2,4,8,16,32,64
+            if (isForbidden)
+                seconds = Math.Max(15, seconds);
+
+            return TimeSpan.FromSeconds(Math.Min(120, seconds));
+        }
+
+        private void ResetWxBackoff()
+        {
+            _wxConsecutiveFailures = 0;
+            _wxBackoffUntilUtc = DateTime.MinValue;
+        }
+
         public MainWindow()
         {
             InitializeComponent();
@@ -79,6 +109,7 @@ namespace ThunderApp
             Title = "GPS Monitor";
             InitializeGPS();
             Loaded += MainWindow_Loaded;
+            CommandBindings.Add(new CommandBinding(OpenUnitSettingsCommand, OpenUnitSettings_Executed));
         }
         
         
@@ -114,6 +145,7 @@ namespace ThunderApp
         private void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
             _appCts = new CancellationTokenSource();
+            _unitSettings = _unitSettingsStore.Load() ?? new UnitSettings();
 
             // Core app services.
             var alerts = new NwsAlertsService("ThunderApp");
@@ -151,6 +183,7 @@ namespace ThunderApp
 
             _dashboardVm = new DashboardViewModel(alerts, gps, log, settings, zones, spcText);
             Dashboard.DataContext = _dashboardVm;
+            _ = Dashboard.SetUnitSettingsAsync(_unitSettings);
 
             _ = InitializeAsync(_appCts.Token);
         }
@@ -307,14 +340,11 @@ namespace ThunderApp
                     {
                         try
                         {
-                            AirTemperature.Text = model.Temperature.ToFahrenheit().ToString();
-                            DewPoint.Text = model.DewPoint.ToFahrenheit().ToString();
+                            AirTemperature.Text = FormatTemperature(model.Temperature);
+                            DewPoint.Text = FormatTemperature(model.DewPoint);
 
                             // Wind can be missing in some obs payloads.
-                            if (model.Wind is not null)
-                                Wind.Text = $"{Math.Round(model.Wind.Speed)} ({model.Wind.Direction})";
-                            else
-                                Wind.Text = "--";
+                            Wind.Text = FormatWind(model.Wind);
 
                             LastUpdate.Text = model.Timestamp.ToLocalTime().ToString(CultureInfo.CurrentCulture);
 
@@ -327,13 +357,13 @@ namespace ThunderApp
                             BarometricPressure.Text = FormatPressure(model.BarometricPressure);
                             SeaLevelPressure.Text = FormatPressure(model.SeaLevelPressure);
 
-                            if (model.Temperature.ToFahrenheit().Value is double t)
+                            if (ConvertTemperatureValue(model.Temperature) is double t)
                                 temperatureData.Add(t);
-                            if (model.DewPoint.ToFahrenheit().Value is double d)
+                            if (ConvertTemperatureValue(model.DewPoint) is double d)
                                 dewPointData.Add(d);
 
-                            if (model.Wind is not null)
-                                windData.Add(model.Wind.Speed);
+                            if (ConvertWindValue(model.Wind?.Speed) is double w)
+                                windData.Add(w);
 
                             _seriesCollection[0].Values = new ChartValues<double>(temperatureData);
                             _seriesCollection[1].Values = new ChartValues<double>(dewPointData);
@@ -383,29 +413,72 @@ namespace ThunderApp
         }
 
 
+        private string FormatTemperature(MeteorologyCore.Temperature? t)
+        {
+            if (ConvertTemperatureValue(t) is not double value) return "--";
+            return _unitSettings.TemperatureUnit == TemperatureUnit.Celsius
+                ? $"{value:0.0} °C"
+                : $"{value:0.0} °F";
+        }
+
+        private double? ConvertTemperatureValue(MeteorologyCore.Temperature? t)
+        {
+            if (t?.Value is not double c) return null;
+            return _unitSettings.TemperatureUnit == TemperatureUnit.Celsius ? c : t.ToFahrenheit().Value;
+        }
+
+        private string FormatWind(MeteorologyCore.Wind? wind)
+        {
+            if (wind is null) return "--";
+            var val = ConvertWindValue(wind.Speed);
+            if (val is null) return "--";
+            var unit = _unitSettings.WindSpeedUnit switch
+            {
+                WindSpeedUnit.Kts => "kt",
+                WindSpeedUnit.Mps => "m/s",
+                _ => "mph"
+            };
+
+            return $"{Math.Round(val.Value)} {unit} ({wind.Direction})";
+        }
+
+        private double? ConvertWindValue(double? mph)
+        {
+            if (mph is null) return null;
+            return _unitSettings.WindSpeedUnit switch
+            {
+                WindSpeedUnit.Kts => mph.Value * 0.868976,
+                WindSpeedUnit.Mps => mph.Value * 0.44704,
+                _ => mph.Value
+            };
+        }
+
         private string FormatPressure(MeteorologyCore.Pressure? p)
         {
             if (p is null) return "--";
             double pa = p.Value;
-            return _pressureUnit switch
+            return _unitSettings.PressureUnit switch
             {
-                PressureDisplayUnit.HPa => $"{(pa / 100.0):0.00} hPa",
-                PressureDisplayUnit.Pa => $"{pa:0.0} Pa",
+                PressureUnit.HPa => $"{(pa / 100.0):0.00} hPa",
+                PressureUnit.Pa => $"{pa:0.0} Pa",
                 _ => $"{(pa / 3386.389):0.00} inHg"
             };
         }
 
-        private void SetPressureUnit(PressureDisplayUnit unit)
+        private async Task ApplyUnitSettingsAsync()
         {
-            _pressureUnit = unit;
-            InHgUnitMenuItem.IsChecked = unit == PressureDisplayUnit.InHg;
-            HpaUnitMenuItem.IsChecked = unit == PressureDisplayUnit.HPa;
-            PaUnitMenuItem.IsChecked = unit == PressureDisplayUnit.Pa;
+            _unitSettingsStore.Save(_unitSettings);
+            await Dashboard.SetUnitSettingsAsync(_unitSettings);
         }
 
-        private void PressureUnitInHg_OnClick(object sender, RoutedEventArgs e) => SetPressureUnit(PressureDisplayUnit.InHg);
-        private void PressureUnitHpa_OnClick(object sender, RoutedEventArgs e) => SetPressureUnit(PressureDisplayUnit.HPa);
-        private void PressureUnitPa_OnClick(object sender, RoutedEventArgs e) => SetPressureUnit(PressureDisplayUnit.Pa);
+        private async void OpenUnitSettings_Executed(object sender, ExecutedRoutedEventArgs e)
+        {
+            var win = new UnitSettingsWindow(_unitSettings) { Owner = this };
+            if (win.ShowDialog() != true) return;
+
+            _unitSettings = win.Result;
+            await ApplyUnitSettingsAsync();
+        }
 
         private void InitializeGPS()
         {

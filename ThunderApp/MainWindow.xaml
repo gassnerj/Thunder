@@ -3,7 +3,7 @@
         xmlns:shell="http://schemas.microsoft.com/winfx/2006/xaml/presentation/shell"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:wpf="clr-namespace:LiveCharts.Wpf;assembly=LiveCharts.Wpf" xmlns:views="clr-namespace:ThunderApp.Views"
+        xmlns:wpf="clr-namespace:LiveCharts.Wpf;assembly=LiveCharts.Wpf" xmlns:views="clr-namespace:ThunderApp.Views" xmlns:local="clr-namespace:ThunderApp"
         mc:Ignorable="d" Title="GPS Monitor" Width="1200" Height="780" WindowStartupLocation="CenterScreen"
         Background="{DynamicResource AppBg}" WindowStyle="None" ResizeMode="CanResize">
 
@@ -191,6 +191,10 @@
             <Setter Property="Background" Value="{StaticResource Surface2}" />
             <Setter Property="Foreground" Value="{StaticResource Text}" />
         </Style>
+        <Style TargetType="MenuItem">
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Padding" Value="8,4" />
+        </Style>
     </Window.Resources>
 
     <Window.CommandBindings>
@@ -200,6 +204,7 @@
     <Window.InputBindings>
         <KeyBinding Command="ApplicationCommands.Find" Key="F" Modifiers="Control" />
         <KeyBinding Command="ApplicationCommands.Properties" Key="M" Modifiers="Control" />
+        <KeyBinding Key="U" Modifiers="Control" Command="{x:Static local:MainWindow.OpenUnitSettingsCommand}" />
     </Window.InputBindings>
 
     <DockPanel LastChildFill="True">
@@ -241,12 +246,7 @@
             <MenuItem Header="_View">
                 <MenuItem Header="Alert _Filters..." Command="ApplicationCommands.Find" InputGestureText="Ctrl+F" />
                 <MenuItem Header="Map _Styling..." Click="OpenMapStyling_OnClick" InputGestureText="Ctrl+M" />
-                <Separator />
-                <MenuItem Header="Pressure Units">
-                    <MenuItem x:Name="InHgUnitMenuItem" Header="inHg" IsCheckable="True" IsChecked="True" Click="PressureUnitInHg_OnClick" />
-                    <MenuItem x:Name="HpaUnitMenuItem" Header="hPa" IsCheckable="True" Click="PressureUnitHpa_OnClick" />
-                    <MenuItem x:Name="PaUnitMenuItem" Header="Pa" IsCheckable="True" Click="PressureUnitPa_OnClick" />
-                </MenuItem>
+                <MenuItem Header="_Units and Theme..." Command="{x:Static local:MainWindow.OpenUnitSettingsCommand}" InputGestureText="Ctrl+U" />
             </MenuItem>
             <MenuItem Header="_Tools" />
             <MenuItem Header="_Help" />
