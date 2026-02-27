@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -40,6 +41,7 @@ namespace ThunderApp
         private NMEA NMEA { get; set; } = null!;
         private IGeoCodeLocation _geoCodeLocation = null!;
         private Vmix _vmixLocation = null!;
+        private VmixDataApiHost? _vmixApiHost;
         private string SerialPortName { get; set; } = "COM5";
 
         private SeriesCollection _seriesCollection = null!;
@@ -90,6 +92,7 @@ namespace ThunderApp
             Title = "GPS Monitor";
             InitializeGPS();
             Loaded += MainWindow_Loaded;
+            Closed += MainWindow_Closed;
             CommandBindings.Add(new CommandBinding(OpenUnitSettingsCommand, OpenUnitSettings_Executed));
         }
         
@@ -162,7 +165,122 @@ namespace ThunderApp
             Dashboard.DataContext = _dashboardVm;
             _ = Dashboard.SetUnitSettingsAsync(_unitSettings);
 
+            StartVmixDataApi();
+
             _ = InitializeAsync(_appCts.Token);
+        }
+
+        private void StartVmixDataApi()
+        {
+            string prefix = Environment.GetEnvironmentVariable("THUNDER_VMIX_API_PREFIX") ?? "http://127.0.0.1:8787/";
+            try
+            {
+                _vmixApiHost?.Stop();
+                _vmixApiHost = new VmixDataApiHost(prefix, BuildVmixApiSnapshot);
+                _vmixApiHost.Start();
+                DiskLogService.Current?.Log($"vMix API started at {_vmixApiHost.Prefix}");
+            }
+            catch (Exception ex)
+            {
+                DiskLogService.Current?.LogException("vMix API start", ex);
+            }
+        }
+
+        private VmixApiSnapshot BuildVmixApiSnapshot()
+        {
+            var snapshot = new VmixApiSnapshot
+            {
+                generatedAtUtc = DateTime.UtcNow,
+                sourceRequested = _unitSettings.ObservationSource.ToString(),
+                sourceActive = _unitSettings.ObservationSource.ToString(),
+                vehicleStationAvailable = false,
+            };
+
+            try
+            {
+                Dispatcher.Invoke(() =>
+                {
+                    if (_dashboardVm?.CurrentLocation is GeoPoint center)
+                    {
+                        snapshot.centerLat = center.Lat;
+                        snapshot.centerLon = center.Lon;
+                    }
+
+                    if (_dashboardVm?.FilterSettings is AlertFilterSettings fs)
+                    {
+                        snapshot.useRadiusFilter = fs.UseRadiusFilter;
+                        snapshot.radiusMiles = fs.RadiusMiles;
+                    }
+
+                    if (_dashboardVm?.AlertsView is ICollectionView view)
+                    {
+                        var warnings = new List<VmixWarningDto>();
+                        foreach (var o in view)
+                        {
+                            if (o is not NwsAlert a) continue;
+                            if (string.IsNullOrWhiteSpace(a.Event) || !a.Event.Contains("Warning", StringComparison.OrdinalIgnoreCase))
+                                continue;
+
+                            warnings.Add(new VmixWarningDto
+                            {
+                                Id = a.Id,
+                                Event = a.Event,
+                                Headline = a.Headline,
+                                Severity = a.Severity,
+                                Urgency = a.Urgency,
+                                AreaDescription = a.AreaDescription,
+                                Effective = a.Effective,
+                                Expires = a.Expires,
+                                Ends = a.Ends,
+                                Onset = a.Onset,
+                            });
+                        }
+
+                        snapshot.warnings = warnings;
+                    }
+                });
+            }
+            catch { }
+
+            var latest = _lastStationSnapshot;
+            if (_unitSettings.ObservationSource == WeatherObservationSource.VehicleLocal)
+            {
+                snapshot.sourceActive = "VehicleLocalUnavailable";
+                snapshot.observation = null;
+                return snapshot;
+            }
+
+            var obs = latest?.Observation;
+            if (obs is null)
+            {
+                snapshot.observation = null;
+                return snapshot;
+            }
+
+            snapshot.observation = new VmixObservationDto
+            {
+                StationId = latest?.ActiveStation?.StationIdentifier ?? "",
+                StationName = latest?.ActiveStation?.Name ?? "",
+                TimeZone = latest?.ActiveStation?.TimeZone ?? "",
+                TimestampUtc = obs.Timestamp.ToUniversalTime(),
+                TemperatureF = obs.Temperature?.ToFahrenheit().Value,
+                DewPointF = obs.DewPoint?.ToFahrenheit().Value,
+                RelativeHumidity = obs.RelativeHumidity,
+                WindMph = obs.Wind?.Speed,
+                WindDirection = obs.Wind?.Direction?.ToString() ?? "",
+                HeatIndexF = obs.HeatIndex?.ToFahrenheit().Value,
+                WindChillF = obs.WindChill?.ToFahrenheit().Value,
+                BarometricPressureInHg = obs.BarometricPressure is not null ? obs.BarometricPressure.Value / 3386.389 : null,
+                SeaLevelPressureInHg = obs.SeaLevelPressure is not null ? obs.SeaLevelPressure.Value / 3386.389 : null,
+            };
+
+            return snapshot;
+        }
+
+        private void MainWindow_Closed(object? sender, EventArgs e)
+        {
+            try { _appCts?.Cancel(); } catch { }
+            try { _vmixApiHost?.Stop(); } catch { }
         }
 
         private async Task InitializeAsync(CancellationToken ct)
@@ -388,7 +506,7 @@ namespace ThunderApp
         }
 
 
-        private string FormatTemperature(MeteorologyCore.ITemperature? t)
+        private string FormatTemperature(MeteorologyCore.Temperature? t)
         {
             if (ConvertTemperatureValue(t) is not double value) return "--";
             return _unitSettings.TemperatureUnit == TemperatureUnit.Celsius
@@ -396,7 +514,7 @@ namespace ThunderApp
                 : $"{value:0.0} °F";
         }
 
-        private double? ConvertTemperatureValue(MeteorologyCore.ITemperature? t)
+        private double? ConvertTemperatureValue(MeteorologyCore.Temperature? t)
         {
             if (t?.Value is not double c) return null;
             return _unitSettings.TemperatureUnit == TemperatureUnit.Celsius ? c : t.ToFahrenheit().Value;

@@ -18,11 +18,13 @@ public partial class UnitSettingsWindow : Window
         TemperatureUnitCombo.ItemsSource = Enum.GetValues(typeof(TemperatureUnit));
         WindSpeedUnitCombo.ItemsSource = Enum.GetValues(typeof(WindSpeedUnit));
         PressureUnitCombo.ItemsSource = Enum.GetValues(typeof(PressureUnit));
+        ObservationSourceCombo.ItemsSource = Enum.GetValues(typeof(WeatherObservationSource));
         MapThemeCombo.ItemsSource = Enum.GetValues(typeof(MapTheme));
 
         TemperatureUnitCombo.SelectedItem = _working.TemperatureUnit;
         WindSpeedUnitCombo.SelectedItem = _working.WindSpeedUnit;
         PressureUnitCombo.SelectedItem = _working.PressureUnit;
+        ObservationSourceCombo.SelectedItem = _working.ObservationSource;
         MapThemeCombo.SelectedItem = _working.MapTheme;
 
         PreviewKeyDown += (_, e) =>
@@ -60,6 +62,7 @@ public partial class UnitSettingsWindow : Window
         _working.TemperatureUnit = GetSelected<TemperatureUnit>(TemperatureUnitCombo, TemperatureUnit.Fahrenheit);
         _working.WindSpeedUnit = GetSelected<WindSpeedUnit>(WindSpeedUnitCombo, WindSpeedUnit.Mph);
         _working.PressureUnit = GetSelected<PressureUnit>(PressureUnitCombo, PressureUnit.InHg);
+        _working.ObservationSource = GetSelected<WeatherObservationSource>(ObservationSourceCombo, WeatherObservationSource.NearestAsos);
         _working.MapTheme = GetSelected<MapTheme>(MapThemeCombo, MapTheme.Dark);
 
         DialogResult = true;

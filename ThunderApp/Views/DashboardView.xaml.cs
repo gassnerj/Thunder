@@ -379,7 +379,7 @@ namespace ThunderApp.Views
             }
         }
 
-        private double? ConvertTemperature(MeteorologyCore.ITemperature? t)
+        private double? ConvertTemperature(MeteorologyCore.Temperature? t)
         {
             if (t?.Value is not double celsius) return null;
             return _unitSettings.TemperatureUnit == TemperatureUnit.Celsius
