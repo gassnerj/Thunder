@@ -388,7 +388,7 @@ namespace ThunderApp
         }
 
 
-        private string FormatTemperature(MeteorologyCore.Temperature? t)
+        private string FormatTemperature(MeteorologyCore.ITemperature? t)
         {
             if (ConvertTemperatureValue(t) is not double value) return "--";
             return _unitSettings.TemperatureUnit == TemperatureUnit.Celsius
@@ -396,7 +396,7 @@ namespace ThunderApp
                 : $"{value:0.0} °F";
         }
 
-        private double? ConvertTemperatureValue(MeteorologyCore.Temperature? t)
+        private double? ConvertTemperatureValue(MeteorologyCore.ITemperature? t)
         {
             if (t?.Value is not double c) return null;
             return _unitSettings.TemperatureUnit == TemperatureUnit.Celsius ? c : t.ToFahrenheit().Value;
