@@ -53,9 +53,20 @@ namespace GeoJsonWeather.Api
         }
     }
 
-    internal static class NwsDefaults
+    public static class NwsDefaults
     {
-        // Put your email or site here. Doesn’t need to be fancy.
-        public const string UserAgent = "ThunderApp/1.0 (contact: your-email@example.com)";
+        // NWS asks clients to send a descriptive User-Agent with contact information.
+        // Override via THUNDER_NWS_USER_AGENT if needed.
+        public static string UserAgent =>
+            Environment.GetEnvironmentVariable("THUNDER_NWS_USER_AGENT")
+            is { Length: > 0 } explicitUa
+                ? explicitUa
+                : $"ThunderApp/1.0 (contact: {Contact})";
+
+        private static string Contact =>
+            Environment.GetEnvironmentVariable("THUNDER_NWS_CONTACT")
+            is { Length: > 0 } explicitContact
+                ? explicitContact
+                : "thunderapp@users.noreply.github.com";
     }
 }

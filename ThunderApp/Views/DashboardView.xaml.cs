@@ -12,6 +12,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using GeoJsonWeather.Api;
 using Microsoft.Web.WebView2.Core;
 using ThunderApp.Models;
 using ThunderApp.Services;
@@ -91,7 +92,7 @@ namespace ThunderApp.Views
             // NWS expects a User-Agent, and behaves better with geo+json accept header.
             if (!_http.DefaultRequestHeaders.UserAgent.Any())
             {
-                _http.DefaultRequestHeaders.UserAgent.ParseAdd("ThunderApp/1.0 (contact: you@example.com)");
+                _http.DefaultRequestHeaders.UserAgent.ParseAdd(NwsDefaults.UserAgent);
                 _http.DefaultRequestHeaders.Accept.Clear();
                 _http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/geo+json"));
                 _http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
@@ -148,7 +149,9 @@ namespace ThunderApp.Views
                         or nameof(AlertFilterSettings.ShowSeverityGlow)
                         or nameof(AlertFilterSettings.ShowSeverityStripes)
                         or nameof(AlertFilterSettings.HazardPaletteMode)
-                        or nameof(AlertFilterSettings.CustomHazardColors))
+                        or nameof(AlertFilterSettings.CustomHazardColors)
+                        or nameof(AlertFilterSettings.AlertsOpacityPercent)
+                        or nameof(AlertFilterSettings.SpcOpacityPercent))
                     {
                         _ = UpdateMapStylingOnMapAsync();
                     }

@@ -49,6 +49,25 @@ namespace ThunderApp
         private CancellationTokenSource? _wxStreamCts;
         private Task? _wxStreamTask;
         private ThunderApp.Models.GeoPoint? _wxStreamAnchor;
+        private int _wxConsecutiveFailures;
+        private DateTime _wxBackoffUntilUtc = DateTime.MinValue;
+
+
+        private static TimeSpan ComputeWxBackoff(int failures, bool isForbidden)
+        {
+            int exp = Math.Min(6, Math.Max(0, failures - 1));
+            int seconds = (int)Math.Pow(2, exp); // 1,2,4,8,16,32,64
+            if (isForbidden)
+                seconds = Math.Max(15, seconds);
+
+            return TimeSpan.FromSeconds(Math.Min(120, seconds));
+        }
+
+        private void ResetWxBackoff()
+        {
+            _wxConsecutiveFailures = 0;
+            _wxBackoffUntilUtc = DateTime.MinValue;
+        }
 
         public MainWindow()
         {
@@ -224,13 +243,22 @@ namespace ThunderApp
 
                     if (needRestart)
                     {
-                        try { _wxStreamCts?.Cancel(); } catch { }
-                        _wxStreamCts?.Dispose();
+                        var nowUtc = DateTime.UtcNow;
+                        if (nowUtc < _wxBackoffUntilUtc)
+                        {
+                            var remaining = (_wxBackoffUntilUtc - nowUtc).TotalSeconds;
+                            DiskLogService.Current?.Log($"WX: backoff active, delaying restart for {Math.Ceiling(remaining)}s");
+                        }
+                        else
+                        {
+                            try { _wxStreamCts?.Cancel(); } catch { }
+                            _wxStreamCts?.Dispose();
 
-                        _wxStreamCts = CancellationTokenSource.CreateLinkedTokenSource(appCt);
-                        _wxStreamAnchor = loc;
+                            _wxStreamCts = CancellationTokenSource.CreateLinkedTokenSource(appCt);
+                            _wxStreamAnchor = loc;
 
-                        _wxStreamTask = Task.Run(() => ConsumeObservationStreamAsync(loc.Value, _wxStreamCts.Token), _wxStreamCts.Token);
+                            _wxStreamTask = Task.Run(() => ConsumeObservationStreamAsync(loc.Value, _wxStreamCts.Token), _wxStreamCts.Token);
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -260,6 +288,10 @@ namespace ThunderApp
                         _wxLoggedFirstObs = true;
                         DiskLogService.Current?.Log($"WX: first obs ts={model.Timestamp:o} tempC={model.Temperature.Value} dpC={model.DewPoint.Value}");
                     }
+
+                    if (_wxConsecutiveFailures > 0)
+                        DiskLogService.Current?.Log("WX: stream recovered; clearing backoff state");
+                    ResetWxBackoff();
 
                     // Never block the UI thread: BeginInvoke instead of Invoke.
                     Dispatcher.BeginInvoke(new Action(() =>
@@ -298,6 +330,15 @@ namespace ThunderApp
             }
             catch (Exception ex)
             {
+                if (!ct.IsCancellationRequested)
+                {
+                    _wxConsecutiveFailures++;
+                    bool isForbidden = ex is HttpRequestException hre && hre.Message.Contains("HTTP 403", StringComparison.OrdinalIgnoreCase);
+                    var delay = ComputeWxBackoff(_wxConsecutiveFailures, isForbidden);
+                    _wxBackoffUntilUtc = DateTime.UtcNow.Add(delay);
+                    DiskLogService.Current?.Log($"WX: stream failure {_wxConsecutiveFailures}; backoff {delay.TotalSeconds:0}s (forbidden={isForbidden})");
+                }
+
                 // If the stream dies early (points/zone/station fetch), surface it.
                 Dispatcher.BeginInvoke(new Action(() =>
                 {
