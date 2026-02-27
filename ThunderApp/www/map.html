@@ -467,6 +467,14 @@ window.setSpcOpacity = function(v){
             }
         }
 
+        // When already at newest frame, start one step back so the next tick advances
+        // forward instead of wrapping to the oldest frame.
+        if (idx >= layers.length - 1 && layers.length > 1) {
+            for (let i = layers.length - 2; i >= 0; i--) {
+                if (ready[i]) { idx = i; break; }
+            }
+        }
+
         timer = setInterval(() => {
             if (!layers.length) return;
 
@@ -518,6 +526,18 @@ window.setSpcOpacity = function(v){
                     else latest();
 
                     if (wasPlaying) setTimeout(() => play(), 50);
+                    return;
+                }
+
+                // While paused (or before playback resumes), always drift forward to the
+                // newest ready frame as tiles finish loading so refreshes don't appear to go backward.
+                if (!timer) {
+                    if (i >= idx) {
+                        show(i);
+                    }
+                    else if (i === newIdx) {
+                        show(i);
+                    }
                 }
             });
 
