@@ -346,6 +346,45 @@ window.setSpcOpacity = function(v){
         payload: null
     };
 
+
+    function stationDisplayLimitForZoom(z) {
+        if (z <= 5) return 4;
+        if (z <= 6) return 6;
+        if (z <= 7) return 10;
+        if (z <= 8) return 16;
+        if (z <= 9) return 24;
+        if (z <= 10) return 36;
+        if (z <= 11) return 50;
+        return 80;
+    }
+
+    function pickStationsForCurrentView(stations, activeId) {
+        if (!Array.isArray(stations) || stations.length === 0) return [];
+
+        const zoom = map.getZoom();
+        const limit = stationDisplayLimitForZoom(zoom);
+        const center = map.getCenter();
+        const withDist = stations
+            .filter(st => typeof st?.lat === 'number' && typeof st?.lon === 'number')
+            .map(st => ({
+                st,
+                dist: map.distance(center, L.latLng(st.lat, st.lon))
+            }))
+            .sort((a, b) => a.dist - b.dist);
+
+        const selected = withDist.slice(0, Math.min(limit, withDist.length)).map(x => x.st);
+
+        if (activeId && !selected.some(st => st.id === activeId)) {
+            const active = stations.find(st => st?.id === activeId);
+            if (active) {
+                if (selected.length >= limit && selected.length > 0) selected.pop();
+                selected.push(active);
+            }
+        }
+
+        return selected;
+    }
+
     function formatObsPopup(st) {
         const obs = st?.observation;
         if (!obs) return '<div style="font-size:12px;color:#cbd5e1">No current observation</div>';
@@ -360,8 +399,9 @@ window.setSpcOpacity = function(v){
         if (!payload || !Array.isArray(payload.stations) || !wxStations.visible) return;
 
         wxStations.activeId = payload.activeStationId || null;
+        const stationsToRender = pickStationsForCurrentView(payload.stations, wxStations.activeId);
 
-        for (const st of payload.stations) {
+        for (const st of stationsToRender) {
             if (typeof st?.lat !== 'number' || typeof st?.lon !== 'number') continue;
             const isActive = !!st.isActive;
             const obs = st.observation || null;
@@ -387,6 +427,9 @@ window.setSpcOpacity = function(v){
         wxStations.visible = !!on;
         renderWeatherStations(wxStations.payload);
     };
+
+    map.on('zoomend', () => { if (wxStations.payload) renderWeatherStations(wxStations.payload); });
+    map.on('moveend', () => { if (wxStations.payload) renderWeatherStations(wxStations.payload); });
 
     // =======================
     // Disable follow on user movement

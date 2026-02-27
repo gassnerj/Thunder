@@ -48,6 +48,10 @@ namespace ThunderApp.Views
 
         private SpcOutlookTextWindow? _spcTextWindow;
         private UnitSettings _unitSettings = new();
+        private IReadOnlyList<ObservationStationModel> _lastStations = Array.Empty<ObservationStationModel>();
+        private ObservationStationModel? _lastActiveStation;
+        private ObservationModel? _lastActiveObservation;
+        private IReadOnlyDictionary<string, ObservationModel?>? _lastStationObservations;
 
         public DashboardView()
         {
@@ -105,6 +109,9 @@ namespace ThunderApp.Views
         {
             _unitSettings = settings?.Clone() ?? new UnitSettings();
             await ApplyMapThemeAsync();
+
+            if (_lastStations.Count > 0)
+                await SetWeatherStationsOnMapCoreAsync(_lastStations, _lastActiveStation, _lastActiveObservation, _lastStationObservations);
         }
 
         public async Task ApplyMapThemeAsync()
@@ -312,6 +319,11 @@ namespace ThunderApp.Views
         {
             if (!_mapReady || MapView?.CoreWebView2 == null) return;
 
+            _lastStations = stations ?? Array.Empty<ObservationStationModel>();
+            _lastActiveStation = activeStation;
+            _lastActiveObservation = activeObservation;
+            _lastStationObservations = stationObservations;
+
             try
             {
                 var payload = new
@@ -367,7 +379,7 @@ namespace ThunderApp.Views
             }
         }
 
-        private double? ConvertTemperature(MeteorologyCore.ITemperature? t)
+        private double? ConvertTemperature(MeteorologyCore.Temperature? t)
         {
             if (t?.Value is not double celsius) return null;
             return _unitSettings.TemperatureUnit == TemperatureUnit.Celsius

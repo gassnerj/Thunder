@@ -15,6 +15,11 @@
                             UseAeroCaptionButtons="False" />
     </WindowChrome.WindowChrome>
     <Window.Resources> <!-- Palette --> <SolidColorBrush x:Key="AppBg" Color="#0B0E14" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.MenuBrushKey}" Color="#0F172A" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.MenuTextBrushKey}" Color="#E5E7EB" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#2563EB" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#FFFFFF" />
+
         <SolidColorBrush x:Key="Surface" Color="#111827" /> <SolidColorBrush x:Key="Surface2" Color="#0F172A" />
         <SolidColorBrush x:Key="Border" Color="#253047" /> <SolidColorBrush x:Key="Text" Color="#E5E7EB" />
         <SolidColorBrush x:Key="Muted" Color="#AAB2C5" /> <SolidColorBrush x:Key="Accent" Color="#4F8BFF" />
@@ -194,6 +199,14 @@
         <Style TargetType="MenuItem">
             <Setter Property="FontSize" Value="14" />
             <Setter Property="Padding" Value="8,4" />
+            <Setter Property="Foreground" Value="{StaticResource Text}" />
+            <Setter Property="Background" Value="{StaticResource Surface2}" />
+            <Style.Triggers>
+                <Trigger Property="IsHighlighted" Value="True">
+                    <Setter Property="Background" Value="{StaticResource Accent}" />
+                    <Setter Property="Foreground" Value="White" />
+                </Trigger>
+            </Style.Triggers>
         </Style>
     </Window.Resources>
 

@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
@@ -42,23 +43,21 @@ namespace ThunderApp
         private string SerialPortName { get; set; } = "COM5";
 
         private SeriesCollection _seriesCollection = null!;
-        private List<double> temperatureData = null!;
-        private List<double> dewPointData = null!;
-        private List<double> windData = null!;
-
         // Weather station streaming (nearest station to current location).
         private CancellationTokenSource? _wxStreamCts;
         private Task? _wxStreamTask;
         private ThunderApp.Models.GeoPoint? _wxStreamAnchor;
 
-
-        private enum PressureDisplayUnit { InHg, HPa, Pa }
-        private PressureDisplayUnit _pressureUnit = PressureDisplayUnit.InHg;
-
         private readonly JsonSettingsService<UnitSettings> _unitSettingsStore = new("unitSettings.json");
         private UnitSettings _unitSettings = new();
         private int _wxConsecutiveFailures;
         private DateTime _wxBackoffUntilUtc = DateTime.MinValue;
+        private StationObservationSnapshot? _lastStationSnapshot;
+
+        // Keep chart history in base units (C, C, mph) so unit switches can re-render instantly.
+        private readonly List<double> _tempHistoryC = new();
+        private readonly List<double> _dewHistoryC = new();
+        private readonly List<double> _windHistoryMph = new();
 
 
 
@@ -97,10 +96,6 @@ namespace ThunderApp
         
         private void InitializeChart()
         {
-            temperatureData = new List<double>();
-            dewPointData    = new List<double>();
-            windData        = new List<double>();
-            
             _seriesCollection = new SeriesCollection()
             {
                 new LineSeries
@@ -301,6 +296,7 @@ namespace ThunderApp
                     if (ct.IsCancellationRequested) break;
                     var model = snapshot.Observation;
                     if (model is null) continue;
+                    _lastStationSnapshot = snapshot;
 
                     if (!_wxLoggedFirstObs)
                     {
@@ -334,22 +330,19 @@ namespace ThunderApp
                             StationName.Text = snapshot.ActiveStation?.Name ?? "--";
                             StationTz.Text = snapshot.ActiveStation?.TimeZone ?? "--";
                             RelativeHumidity.Text = $"{Math.Round(model.RelativeHumidity)}%";
-                            HeatIndex.Text = model.HeatIndex is not null ? model.HeatIndex.ToFahrenheit().ToString() : "--";
-                            WindChill.Text = model.WindChill is not null ? model.WindChill.ToFahrenheit().ToString() : "--";
+                            HeatIndex.Text = FormatTemperature(model.HeatIndex);
+                            WindChill.Text = FormatTemperature(model.WindChill);
                             BarometricPressure.Text = FormatPressure(model.BarometricPressure);
                             SeaLevelPressure.Text = FormatPressure(model.SeaLevelPressure);
 
-                            if (ConvertTemperatureValue(model.Temperature) is double t)
-                                temperatureData.Add(t);
-                            if (ConvertTemperatureValue(model.DewPoint) is double d)
-                                dewPointData.Add(d);
+                            if (model.Temperature?.Value is double tC)
+                                _tempHistoryC.Add(tC);
+                            if (model.DewPoint?.Value is double dC)
+                                _dewHistoryC.Add(dC);
+                            if (model.Wind?.Speed is double wMph)
+                                _windHistoryMph.Add(wMph);
 
-                            if (ConvertWindValue(model.Wind?.Speed) is double w)
-                                windData.Add(w);
-
-                            _seriesCollection[0].Values = new ChartValues<double>(temperatureData);
-                            _seriesCollection[1].Values = new ChartValues<double>(dewPointData);
-                            _seriesCollection[2].Values = new ChartValues<double>(windData);
+                            RefreshChartSeries();
                         }
                         catch
                         {
@@ -395,7 +388,7 @@ namespace ThunderApp
         }
 
 
-        private string FormatTemperature(MeteorologyCore.ITemperature? t)
+        private string FormatTemperature(MeteorologyCore.Temperature? t)
         {
             if (ConvertTemperatureValue(t) is not double value) return "--";
             return _unitSettings.TemperatureUnit == TemperatureUnit.Celsius
@@ -403,7 +396,7 @@ namespace ThunderApp
                 : $"{value:0.0} °F";
         }
 
-        private double? ConvertTemperatureValue(MeteorologyCore.ITemperature? t)
+        private double? ConvertTemperatureValue(MeteorologyCore.Temperature? t)
         {
             if (t?.Value is not double c) return null;
             return _unitSettings.TemperatureUnit == TemperatureUnit.Celsius ? c : t.ToFahrenheit().Value;
@@ -447,10 +440,44 @@ namespace ThunderApp
             };
         }
 
+        private void RefreshChartSeries()
+        {
+            _seriesCollection[0].Values = new ChartValues<double>(_tempHistoryC.Select(v =>
+                _unitSettings.TemperatureUnit == TemperatureUnit.Celsius ? v : (v * 9.0 / 5.0) + 32.0));
+            _seriesCollection[1].Values = new ChartValues<double>(_dewHistoryC.Select(v =>
+                _unitSettings.TemperatureUnit == TemperatureUnit.Celsius ? v : (v * 9.0 / 5.0) + 32.0));
+            _seriesCollection[2].Values = new ChartValues<double>(_windHistoryMph.Select(v => ConvertWindValue(v) ?? v));
+        }
+
+        private async Task RefreshLatestWeatherPresentationAsync()
+        {
+            var snap = _lastStationSnapshot;
+            var model = snap?.Observation;
+            if (snap is null || model is null) return;
+
+            AirTemperature.Text = FormatTemperature(model.Temperature);
+            DewPoint.Text = FormatTemperature(model.DewPoint);
+            Wind.Text = FormatWind(model.Wind);
+            LastUpdate.Text = model.Timestamp.ToLocalTime().ToString(CultureInfo.CurrentCulture);
+
+            ActiveStation.Text = snap.ActiveStation?.StationIdentifier ?? "--";
+            StationName.Text = snap.ActiveStation?.Name ?? "--";
+            StationTz.Text = snap.ActiveStation?.TimeZone ?? "--";
+            RelativeHumidity.Text = $"{Math.Round(model.RelativeHumidity)}%";
+            HeatIndex.Text = FormatTemperature(model.HeatIndex);
+            WindChill.Text = FormatTemperature(model.WindChill);
+            BarometricPressure.Text = FormatPressure(model.BarometricPressure);
+            SeaLevelPressure.Text = FormatPressure(model.SeaLevelPressure);
+
+            RefreshChartSeries();
+            await Dashboard.SetWeatherStationsOnMapAsync(snap.Stations, snap.ActiveStation, model, snap.StationObservations);
+        }
+
         private async Task ApplyUnitSettingsAsync()
         {
             _unitSettingsStore.Save(_unitSettings);
             await Dashboard.SetUnitSettingsAsync(_unitSettings);
+            await RefreshLatestWeatherPresentationAsync();
         }
 
         private async void OpenUnitSettings_Executed(object sender, ExecutedRoutedEventArgs e)
