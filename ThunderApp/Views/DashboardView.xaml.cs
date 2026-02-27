@@ -134,7 +134,7 @@ namespace ThunderApp.Views
                             {
                                 var p = _vm?.CurrentLocation;
                                 if (p != null)
-                                    await UpdateMapLocationAsync(p.Lat, p.Lon, DefaultZoom, addTrail: true);
+                                    await UpdateMapLocationAsync(p.Value.Lat, p.Value.Lon, DefaultZoom, addTrail: true);
                             }
                             catch { }
                         }));
