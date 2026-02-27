@@ -478,12 +478,26 @@
                 <CheckBox Content="SPC Day 3 Outlook"
                           Style="{StaticResource WfSwitch}"
                           IsChecked="{Binding FilterSettings.ShowSpcDay3}"
+                          Margin="0,0,0,6" />
+
+                <CheckBox Content="Weather stations"
+                          Style="{StaticResource WfSwitch}"
+                          IsChecked="{Binding FilterSettings.ShowWeatherStations}"
                           Margin="0,0,0,8" />
 
                 <CheckBox Content="Severity outline"
                           Style="{StaticResource WfSwitch}"
                           IsChecked="{Binding FilterSettings.ShowSeverityOutline}"
                           Margin="0,0,0,8" />
+
+                <DockPanel Margin="0,0,0,4">
+                    <TextBlock Style="{StaticResource DashMuted}" Text="SPC opacity" />
+                    <TextBlock Style="{StaticResource DashMuted}" DockPanel.Dock="Right"
+                               Text="{Binding FilterSettings.SpcOpacityPercent, StringFormat={}{0}%}" />
+                </DockPanel>
+                <Slider Minimum="0" Maximum="100" IsSnapToTickEnabled="True" TickFrequency="5"
+                        Value="{Binding FilterSettings.SpcOpacityPercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                        Margin="0,0,0,8" />
 
                 <Button Content="SPC Text…"
                         Style="{StaticResource DashActionButton}"
