@@ -1,6 +1,9 @@
 ﻿#nullable enable
+using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
+using System.Net.Http;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -12,17 +15,34 @@ namespace GeoJsonWeather;
 
 public class ObservationManager
 {
-    public static async IAsyncEnumerable<ObservationModel?> GetNearestObservations(
+    public static async IAsyncEnumerable<StationObservationSnapshot> GetNearestObservations(
         double latitude,
         double longitude,
         [EnumeratorCancellation] CancellationToken ct = default)
     {
-        var pointsUrl = $"https://api.weather.gov/points/{latitude},{longitude}";
+        string latRaw = latitude.ToString("0.########", CultureInfo.InvariantCulture);
+        string lonRaw = longitude.ToString("0.########", CultureInfo.InvariantCulture);
+        var pointsUrl = $"https://api.weather.gov/points/{latRaw},{lonRaw}";
 
         WebData.Logger?.Invoke($"WX points url={pointsUrl}");
 
-        var pointsMgr = new ApiManager(new ApiFetcher(string.Empty, pointsUrl));
-        ForecastPointModel? point = await pointsMgr.GetModelAsync(new ForecastPointParser(), ct);
+        ForecastPointModel? point;
+        try
+        {
+            var pointsMgr = new ApiManager(new ApiFetcher(string.Empty, pointsUrl));
+            point = await pointsMgr.GetModelAsync(new ForecastPointParser(), ct);
+        }
+        catch (HttpRequestException ex) when (ex.Message.Contains("HTTP 403", StringComparison.OrdinalIgnoreCase))
+        {
+            string lat4 = latitude.ToString("0.####", CultureInfo.InvariantCulture);
+            string lon4 = longitude.ToString("0.####", CultureInfo.InvariantCulture);
+            var retryUrl = $"https://api.weather.gov/points/{lat4},{lon4}";
+            WebData.Logger?.Invoke($"WX points retry url={retryUrl} after 403");
+
+            await Task.Delay(500, ct);
+            var retryMgr = new ApiManager(new ApiFetcher(string.Empty, retryUrl));
+            point = await retryMgr.GetModelAsync(new ForecastPointParser(), ct);
+        }
         WebData.Logger?.Invoke(point is null ? "WX points: null" : $"WX points OK zoneUrl={point.ZoneUrl}");
         if (point is null || string.IsNullOrWhiteSpace(point.ZoneUrl))
             yield break;
@@ -69,7 +89,12 @@ public class ObservationManager
                 // Later we’ll add “last known good” + stale flag.
             }
 
-            yield return obs;
+            yield return new StationObservationSnapshot
+            {
+                Observation = obs,
+                ActiveStation = nearest,
+                Stations = stations
+            };
 
             // Delay AFTER yielding so you get an immediate first update.
             await Task.Delay(60000, ct);
