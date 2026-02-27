@@ -71,25 +71,6 @@ namespace ThunderApp
 
         private enum PressureDisplayUnit { InHg, HPa, Pa }
         private PressureDisplayUnit _pressureUnit = PressureDisplayUnit.InHg;
-        private int _wxConsecutiveFailures;
-        private DateTime _wxBackoffUntilUtc = DateTime.MinValue;
-
-
-        private static TimeSpan ComputeWxBackoff(int failures, bool isForbidden)
-        {
-            int exp = Math.Min(6, Math.Max(0, failures - 1));
-            int seconds = (int)Math.Pow(2, exp); // 1,2,4,8,16,32,64
-            if (isForbidden)
-                seconds = Math.Max(15, seconds);
-
-            return TimeSpan.FromSeconds(Math.Min(120, seconds));
-        }
-
-        private void ResetWxBackoff()
-        {
-            _wxConsecutiveFailures = 0;
-            _wxBackoffUntilUtc = DateTime.MinValue;
-        }
 
         public MainWindow()
         {
