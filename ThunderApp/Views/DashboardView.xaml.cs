@@ -33,7 +33,6 @@ namespace ThunderApp.Views
         private double? _lastLon;
 
         private const int DefaultZoom = 10;
-        private const double MinTrailMoveMeters = 5;
 
         private DashboardViewModel? _vm;
 
@@ -134,7 +133,7 @@ namespace ThunderApp.Views
                             {
                                 var p = _vm?.CurrentLocation;
                                 if (p != null)
-                                    await UpdateMapLocationAsync(p.Value.Lat, p.Value.Lon, DefaultZoom, addTrail: true);
+                                    await UpdateMapLocationAsync(p.Lat, p.Lon, DefaultZoom, addTrail: true);
                             }
                             catch { }
                         }));
@@ -704,12 +703,6 @@ private async void RadarFrames_ValueChanged(object sender, RoutedPropertyChanged
             if (!_mapReady || MapView?.CoreWebView2 == null)
                 return;
 
-            if (addTrail && _lastLat.HasValue && _lastLon.HasValue)
-            {
-                double meters = HaversineMeters(_lastLat.Value, _lastLon.Value, lat, lon);
-                if (meters < MinTrailMoveMeters)
-                    addTrail = false;
-            }
 
             _lastLat = lat;
             _lastLon = lon;

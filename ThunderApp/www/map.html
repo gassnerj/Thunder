@@ -712,8 +712,8 @@ window.setSpcOpacity = function(v){
 
 …` : raw;
                     const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-                    const html = `<div style="max-width:500px"><div style="font-weight:600;margin-bottom:6px">${esc(dayKey.toUpperCase())} • ${esc(label)}</div><pre style="white-space:pre-wrap;max-height:280px;overflow:auto;margin:0">${esc(text)}</pre></div>`;
-                    L.popup({ maxWidth: 540 }).setLatLng(ev.latlng).setContent(html).openOn(map);
+                    const html = `<div style="width:820px;max-width:86vw"><div style="font-weight:600;margin-bottom:6px">${esc(dayKey.toUpperCase())} • ${esc(label)}</div><pre style="white-space:pre-wrap;max-height:420px;overflow:auto;margin:0">${esc(text)}</pre></div>`;
+                    L.popup({ maxWidth: 900, minWidth: 640 }).setLatLng(ev.latlng).setContent(html).openOn(map);
                 });
             }
         });
