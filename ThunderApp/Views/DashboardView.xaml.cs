@@ -134,7 +134,7 @@ namespace ThunderApp.Views
                             {
                                 var p = _vm?.CurrentLocation;
                                 if (p != null)
-                                    await UpdateMapLocationAsync(p.Value.Lat, p.Value.Lon, DefaultZoom, addTrail: true);
+                                    await UpdateMapLocationAsync(p.Lat, p.Lon, DefaultZoom, addTrail: true);
                             }
                             catch { }
                         }));
@@ -162,6 +162,11 @@ namespace ThunderApp.Views
                         or nameof(AlertFilterSettings.ShowSpcDay3))
                     {
                         _ = UpdateSpcOverlaysOnMapAsync();
+                    }
+
+                    if (args.PropertyName is nameof(AlertFilterSettings.ShowWeatherStations))
+                    {
+                        _ = UpdateWeatherStationsVisibilityOnMapAsync();
                     }
 
                     if (args.PropertyName is nameof(AlertFilterSettings.MapSplitRatio))
@@ -482,6 +487,7 @@ private void ApplySavedAlertsMapSplit()
                 _ = QueueAlertPolygonUpdateAsync();
                 _ = UpdateRangeCircleOnMapAsync();
                 _ = UpdateSpcOverlaysOnMapAsync();
+                _ = UpdateWeatherStationsVisibilityOnMapAsync();
                 // Push palette + severity visuals immediately on first load.
                 _ = UpdateMapStylingOnMapAsync();
             };

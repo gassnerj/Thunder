@@ -478,6 +478,11 @@
                 <CheckBox Content="SPC Day 3 Outlook"
                           Style="{StaticResource WfSwitch}"
                           IsChecked="{Binding FilterSettings.ShowSpcDay3}"
+                          Margin="0,0,0,6" />
+
+                <CheckBox Content="Weather stations"
+                          Style="{StaticResource WfSwitch}"
+                          IsChecked="{Binding FilterSettings.ShowWeatherStations}"
                           Margin="0,0,0,8" />
 
                 <CheckBox Content="Severity outline"

@@ -322,7 +322,9 @@ window.setSpcOpacity = function(v){
     const wxStations = {
         layer: L.layerGroup().addTo(map),
         byId: new Map(),
-        activeId: null
+        activeId: null,
+        visible: true,
+        payload: null
     };
 
     function formatObsPopup(st) {
@@ -333,11 +335,11 @@ window.setSpcOpacity = function(v){
         return `<div style="font-size:12px;line-height:1.35"><div><b>Temp:</b> ${f(obs.tempF)} °F</div><div><b>Dew Point:</b> ${f(obs.dewF)} °F</div><div><b>RH:</b> ${rh}</div><div><b>Wind:</b> ${f(obs.windMph)} mph ${obs.windDir || ''}</div><div><b>Obs Time:</b> ${obs.timestamp ? new Date(obs.timestamp).toLocaleString() : '--'}</div></div>`;
     }
 
-    window.setWeatherStations = function(payload) {
-        if (!payload || !Array.isArray(payload.stations)) return;
-
+    function renderWeatherStations(payload) {
         wxStations.layer.clearLayers();
         wxStations.byId.clear();
+        if (!payload || !Array.isArray(payload.stations) || !wxStations.visible) return;
+
         wxStations.activeId = payload.activeStationId || null;
 
         for (const st of payload.stations) {
@@ -357,6 +359,16 @@ window.setSpcOpacity = function(v){
             marker.addTo(wxStations.layer);
             if (st.id) wxStations.byId.set(st.id, marker);
         }
+    }
+
+    window.setWeatherStations = function(payload) {
+        wxStations.payload = payload;
+        renderWeatherStations(payload);
+    };
+
+    window.setWeatherStationsVisible = function(on) {
+        wxStations.visible = !!on;
+        renderWeatherStations(wxStations.payload);
     };
 
     // =======================

@@ -348,6 +348,7 @@
                                     <RowDefinition Height="Auto" /> <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" /> <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" /> <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" /> <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
                                 <TextBlock Grid.Row="0" Grid.Column="0" Foreground="{StaticResource Muted}" Text="Station ID" />
                                 <TextBlock Grid.Row="0" Grid.Column="1" Name="ActiveStation" Text="—" />
@@ -377,11 +378,16 @@
                         </StackPanel>
                     </Border>
                     <Border Grid.Column="2" Style="{StaticResource Card}">
-                        <StackPanel>
-                            <TextBlock FontSize="16" FontWeight="SemiBold" Text="Trend" />
-                            <TextBlock Foreground="{StaticResource Muted}" Margin="0,0,0,10" Text="LiveCharts output." />
-                            <wpf:CartesianChart Name="DataChart" />
-                        </StackPanel>
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Grid.Row="0" FontSize="16" FontWeight="SemiBold" Text="Trend" />
+                            <TextBlock Grid.Row="1" Foreground="{StaticResource Muted}" Margin="0,0,0,10" Text="LiveCharts output." />
+                            <wpf:CartesianChart Grid.Row="2" Name="DataChart" />
+                        </Grid>
                     </Border>
                 </Grid>
             </TabItem>
