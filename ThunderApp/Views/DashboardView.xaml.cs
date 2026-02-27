@@ -149,7 +149,9 @@ namespace ThunderApp.Views
                         or nameof(AlertFilterSettings.ShowSeverityGlow)
                         or nameof(AlertFilterSettings.ShowSeverityStripes)
                         or nameof(AlertFilterSettings.HazardPaletteMode)
-                        or nameof(AlertFilterSettings.CustomHazardColors))
+                        or nameof(AlertFilterSettings.CustomHazardColors)
+                        or nameof(AlertFilterSettings.AlertsOpacityPercent)
+                        or nameof(AlertFilterSettings.SpcOpacityPercent))
                     {
                         _ = UpdateMapStylingOnMapAsync();
                     }

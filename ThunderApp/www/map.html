@@ -77,10 +77,12 @@
     <!-- Floating radar controls (shown only when radar is enabled) -->
     <div id="radarOverlay" class="radar-overlay hidden" aria-hidden="true">
         <div class="radar-bar">
+            <button class="radar-btn" data-act="start" title="Go to oldest frame">⏮</button>
             <button class="radar-btn" data-act="rew" title="Rewind">⏪</button>
             <button class="radar-btn" data-act="play" title="Play">▶</button>
             <button class="radar-btn" data-act="pause" title="Pause">⏸</button>
             <button class="radar-btn" data-act="fwd" title="Forward">⏩</button>
+            <button class="radar-btn" data-act="end" title="Go to newest frame">⏭</button>
 
             <div class="radar-text">
                 <div id="radarFrameStamp" class="radar-line"></div>
@@ -96,7 +98,12 @@ let alertsOpacityFactor = 1.0;
 let spcOpacityFactor = 1.0;
 function __clamp01(x){ x=parseFloat(x); if(isNaN(x)) return 1.0; return Math.max(0.0, Math.min(1.0, x)); }
 window.setAlertsOpacity = function(v){ alertsOpacityFactor = __clamp01(v); if(window.alertLayer){ window.alertLayer.setStyle(alertStyle);} };
-window.setSpcOpacity = function(v){ spcOpacityFactor = __clamp01(v); if(window.spcLayerD1){ window.spcLayerD1.setStyle(spcStyle);} if(window.spcLayerD2){ window.spcLayerD2.setStyle(spcStyle);} if(window.spcLayerD3){ window.spcLayerD3.setStyle(spcStyle);} };
+window.setSpcOpacity = function(v){
+    spcOpacityFactor = __clamp01(v);
+    if (window.spc && window.spc.layers) {
+        Object.values(window.spc.layers).forEach(lyr => { try { lyr.setStyle(spcStyle); } catch {} });
+    }
+};
 
 
     // =======================
@@ -379,10 +386,12 @@ window.setSpcOpacity = function(v){ spcOpacityFactor = __clamp01(v); if(window.s
         overlayEl.addEventListener('click', (e) => {
             const act = e.target?.getAttribute?.('data-act');
             if (!act) return;
+            if (act === 'start') first();
             if (act === 'rew') prev();
             if (act === 'play') play();
             if (act === 'pause') pause();
             if (act === 'fwd') next();
+            if (act === 'end') latest();
         });
     }
 
@@ -434,13 +443,28 @@ window.setSpcOpacity = function(v){ spcOpacityFactor = __clamp01(v); if(window.s
     function next() { if (layers.length) show(idx + 1); }
     function prev() { if (layers.length) show(idx - 1); }
 
+    function first() {
+        if (!layers.length) return;
+        for (let i = 0; i < layers.length; i++) {
+            if (ready[i]) { show(i); return; }
+        }
+    }
+
+    function latest() {
+        if (!layers.length) return;
+        for (let i = layers.length - 1; i >= 0; i--) {
+            if (ready[i]) { show(i); return; }
+        }
+    }
+
     function play() {
         if (timer || layers.length < 2) return;
 
-        // If current isn't ready, jump to first ready.
+        // If current isn't ready, jump to newest ready frame.
         if (!ready[idx]) {
-            const first = ready.findIndex(x => x);
-            if (first >= 0) idx = first;
+            for (let i = ready.length - 1; i >= 0; i--) {
+                if (ready[i]) { idx = i; break; }
+            }
         }
 
         timer = setInterval(() => {
@@ -493,7 +517,7 @@ window.setSpcOpacity = function(v){ spcOpacityFactor = __clamp01(v); if(window.s
                 // First time anything loads, show something immediately.
                 if (visibleIdx < 0) {
                     if (ready[newIdx]) show(newIdx);
-                    else show(i);
+                    else latest();
 
                     if (wasPlaying) setTimeout(() => play(), 50);
                 }
@@ -505,7 +529,7 @@ window.setSpcOpacity = function(v){ spcOpacityFactor = __clamp01(v); if(window.s
         ready = new Array(layers.length).fill(false);
 
         // Best-effort keep index
-        let newIdx = 0;
+        let newIdx = Math.max(0, frames.length - 1);
         if (keepTs != null) {
             const found = frames.findIndex(x => x.getTime() === keepTs);
             if (found >= 0) newIdx = found;
@@ -577,6 +601,8 @@ window.setSpcOpacity = function(v){ spcOpacityFactor = __clamp01(v); if(window.s
         setSpeed,
         next,
         prev,
+        first,
+        latest,
         play,
         pause
     };
@@ -615,6 +641,8 @@ window.setSpcOpacity = function(v){ spcOpacityFactor = __clamp01(v); if(window.s
         layers: {},
         enabled: { day1: false, day2: false, day3: false }
     };
+
+    window.spc = spc;
 
     const spcUrls = {
         day1: "https://www.spc.noaa.gov/products/outlook/day1otlk_cat.nolyr.geojson",
