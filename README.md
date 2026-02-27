@@ -15,4 +15,6 @@ Config in `ThunderApp/appsettings.json`:
 - `Nominatim:UserAgent`
 - `Nominatim:BaseUrl`
 
+You can also paste your Mapbox token in-app via **View -> Units and Theme -> Mapbox Token** (saved in unit settings).
+
 If Mapbox is unavailable or token is blank, Thunder falls back to Nominatim.

@@ -39,6 +39,7 @@ public sealed class UnitSettings
     public PressureUnit PressureUnit { get; set; } = PressureUnit.InHg;
     public MapTheme MapTheme { get; set; } = MapTheme.Dark;
     public WeatherObservationSource ObservationSource { get; set; } = WeatherObservationSource.NearestAsos;
+    public string MapboxAccessToken { get; set; } = "";
 
     public UnitSettings Clone() => new()
     {
@@ -46,6 +47,7 @@ public sealed class UnitSettings
         WindSpeedUnit = WindSpeedUnit,
         PressureUnit = PressureUnit,
         MapTheme = MapTheme,
-        ObservationSource = ObservationSource
+        ObservationSource = ObservationSource,
+        MapboxAccessToken = MapboxAccessToken
     };
 }

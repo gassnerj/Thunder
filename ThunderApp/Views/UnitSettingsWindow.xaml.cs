@@ -26,6 +26,7 @@ public partial class UnitSettingsWindow : Window
         PressureUnitCombo.SelectedItem = _working.PressureUnit;
         ObservationSourceCombo.SelectedItem = _working.ObservationSource;
         MapThemeCombo.SelectedItem = _working.MapTheme;
+        MapboxTokenTextBox.Text = _working.MapboxAccessToken ?? "";
 
         PreviewKeyDown += (_, e) =>
         {
@@ -64,6 +65,7 @@ public partial class UnitSettingsWindow : Window
         _working.PressureUnit = GetSelected<PressureUnit>(PressureUnitCombo, PressureUnit.InHg);
         _working.ObservationSource = GetSelected<WeatherObservationSource>(ObservationSourceCombo, WeatherObservationSource.NearestAsos);
         _working.MapTheme = GetSelected<MapTheme>(MapThemeCombo, MapTheme.Dark);
+        _working.MapboxAccessToken = MapboxTokenTextBox.Text?.Trim() ?? "";
 
         DialogResult = true;
         Close();

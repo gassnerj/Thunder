@@ -36,6 +36,7 @@ namespace ThunderApp
         private ThunderApp.ViewModels.DashboardViewModel? _dashboardVm;
         private AlertFiltersWindow? _alertFiltersWindow;
         private NwsAlertsService? _alertsService;
+        private DiskLogService? _logService;
         
         private GPS GPSLocation { get; set; } = null!;
         private GeoCode GeoCode { get; set; } = null!;
@@ -45,6 +46,7 @@ namespace ThunderApp
         private VmixDataApiHost? _vmixApiHost;
         private ILocationOverlayService? _locationOverlayService;
         private LocationOverlaySnapshot? _lastLocationOverlay;
+        private AppSettings _appSettings = new();
         private string SerialPortName { get; set; } = "COM5";
 
         private SeriesCollection _seriesCollection = null!;
@@ -134,19 +136,15 @@ namespace ThunderApp
             var alerts = new NwsAlertsService("ThunderApp");
             var gps = new GpsService();
             var log = new DiskLogService();
+            _logService = log;
             GeoJsonWeather.Api.WebData.Logger = msg => log.Log(msg);
             log.Info("MainWindow: logging initialized");
             var settings = new JsonSettingsService<AlertFilterSettings>("alertFilters.json");
 
             // Shared HTTP + cache for NWS/SPC helpers.
             var http = new HttpClient();
-            var appSettings = AppSettingsLoader.Load();
-            _locationOverlayService = new ReverseGeocodeCoordinator(
-                http,
-                appSettings.Mapbox.AccessToken,
-                appSettings.Nominatim.BaseUrl,
-                appSettings.Nominatim.UserAgent,
-                msg => log.Log(msg));
+            _appSettings = AppSettingsLoader.Load();
+            _locationOverlayService = BuildLocationOverlayService(http, log);
             var cacheRoot = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "cache");
             var cache = new SimpleDiskCache(cacheRoot);
 
@@ -178,6 +176,21 @@ namespace ThunderApp
             StartVmixDataApi();
 
             _ = InitializeAsync(_appCts.Token);
+        }
+
+
+        private ILocationOverlayService BuildLocationOverlayService(HttpClient http, DiskLogService log)
+        {
+            string token = string.IsNullOrWhiteSpace(_unitSettings.MapboxAccessToken)
+                ? _appSettings.Mapbox.AccessToken
+                : _unitSettings.MapboxAccessToken;
+
+            return new ReverseGeocodeCoordinator(
+                http,
+                token,
+                _appSettings.Nominatim.BaseUrl,
+                _appSettings.Nominatim.UserAgent,
+                msg => log.Log(msg));
         }
 
         private void StartVmixDataApi()
@@ -668,6 +681,11 @@ namespace ThunderApp
         private async Task ApplyUnitSettingsAsync()
         {
             _unitSettingsStore.Save(_unitSettings);
+
+            // Rebuild location service in case token/user geocode settings changed.
+            if (_logService is not null)
+                _locationOverlayService = BuildLocationOverlayService(new HttpClient(), _logService);
+
             await Dashboard.SetUnitSettingsAsync(_unitSettings);
             await RefreshLatestWeatherPresentationAsync();
         }
