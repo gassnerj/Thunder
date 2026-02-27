@@ -12,6 +12,8 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using GeoJsonWeather.Api;
+using GeoJsonWeather.Models;
 using Microsoft.Web.WebView2.Core;
 using ThunderApp.Models;
 using ThunderApp.Services;
@@ -32,11 +34,11 @@ namespace ThunderApp.Views
         private double? _lastLon;
 
         private const int DefaultZoom = 10;
-        private const double MinTrailMoveMeters = 50;
 
         private DashboardViewModel? _vm;
 
         private PropertyChangedEventHandler? _filterChangedHandler;
+        private PropertyChangedEventHandler? _vmChangedHandler;
         private static bool _paletteHooked;
 
 
@@ -45,6 +47,11 @@ namespace ThunderApp.Views
         private int _alertsUpdateVersion;
 
         private SpcOutlookTextWindow? _spcTextWindow;
+        private UnitSettings _unitSettings = new();
+        private IReadOnlyList<ObservationStationModel> _lastStations = Array.Empty<ObservationStationModel>();
+        private ObservationStationModel? _lastActiveStation;
+        private ObservationModel? _lastActiveObservation;
+        private IReadOnlyDictionary<string, ObservationModel?>? _lastStationObservations;
 
         public DashboardView()
         {
@@ -91,11 +98,27 @@ namespace ThunderApp.Views
             // NWS expects a User-Agent, and behaves better with geo+json accept header.
             if (!_http.DefaultRequestHeaders.UserAgent.Any())
             {
-                _http.DefaultRequestHeaders.UserAgent.ParseAdd("ThunderApp/1.0 (contact: you@example.com)");
+                _http.DefaultRequestHeaders.UserAgent.ParseAdd(NwsDefaults.UserAgent);
                 _http.DefaultRequestHeaders.Accept.Clear();
                 _http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/geo+json"));
                 _http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
             }
+        }
+
+        public async Task SetUnitSettingsAsync(UnitSettings settings)
+        {
+            _unitSettings = settings?.Clone() ?? new UnitSettings();
+            await ApplyMapThemeAsync();
+
+            if (_lastStations.Count > 0)
+                await SetWeatherStationsOnMapCoreAsync(_lastStations, _lastActiveStation, _lastActiveObservation, _lastStationObservations);
+        }
+
+        public async Task ApplyMapThemeAsync()
+        {
+            if (!_mapReady || MapView?.CoreWebView2 == null) return;
+            string theme = _unitSettings.MapTheme == MapTheme.Dark ? "dark" : "light";
+            await MapView.CoreWebView2.ExecuteScriptAsync($"setMapTheme('{theme}');");
         }
 
         private void DashboardView_DataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
@@ -105,6 +128,9 @@ namespace ThunderApp.Views
 
             if (_vm != null)
                 _vm.AlertsChanged -= Vm_AlertsChanged;
+
+            if (_vm != null && _vmChangedHandler != null)
+                _vm.PropertyChanged -= _vmChangedHandler;
 
             if (_vm?.FilterSettings != null && _filterChangedHandler != null)
                 _vm.FilterSettings.PropertyChanged -= _filterChangedHandler;
@@ -116,6 +142,27 @@ namespace ThunderApp.Views
 
             if (_vm != null)
                 _vm.AlertsChanged += Vm_AlertsChanged;
+
+            if (_vm != null)
+            {
+                _vmChangedHandler = (_, args) =>
+                {
+                    if (args.PropertyName == nameof(DashboardViewModel.CurrentLocation))
+                    {
+                        _ = Dispatcher.BeginInvoke(new Action(async () =>
+                        {
+                            try
+                            {
+                                var pointObj = (object?)_vm?.CurrentLocation;
+                                if (TryExtractLatLon(pointObj, out double lat, out double lon))
+                                    await UpdateMapLocationAsync(lat, lon, DefaultZoom, addTrail: true);
+                            }
+                            catch { }
+                        }));
+                    }
+                };
+                _vm.PropertyChanged += _vmChangedHandler;
+            }
 
             if (_vm?.FilterSettings != null)
             {
@@ -138,17 +185,24 @@ namespace ThunderApp.Views
                         _ = UpdateSpcOverlaysOnMapAsync();
                     }
 
+                    if (args.PropertyName is nameof(AlertFilterSettings.ShowWeatherStations))
+                    {
+                        _ = UpdateWeatherStationsVisibilityOnMapAsync();
+                    }
+
                     if (args.PropertyName is nameof(AlertFilterSettings.MapSplitRatio))
                     {
                         ApplySavedAlertsMapSplit();
-                _ = UpdateMapStylingOnMapAsync();
+                        _ = UpdateMapStylingOnMapAsync();
                     }
 
                     if (args.PropertyName is nameof(AlertFilterSettings.ShowSeverityOutline)
                         or nameof(AlertFilterSettings.ShowSeverityGlow)
                         or nameof(AlertFilterSettings.ShowSeverityStripes)
                         or nameof(AlertFilterSettings.HazardPaletteMode)
-                        or nameof(AlertFilterSettings.CustomHazardColors))
+                        or nameof(AlertFilterSettings.CustomHazardColors)
+                        or nameof(AlertFilterSettings.AlertsOpacityPercent)
+                        or nameof(AlertFilterSettings.SpcOpacityPercent))
                     {
                         _ = UpdateMapStylingOnMapAsync();
                     }
@@ -165,6 +219,43 @@ namespace ThunderApp.Views
                 // Apply split once we have settings.
                 ApplySavedAlertsMapSplit();
             }
+        }
+
+
+        private static bool TryExtractLatLon(object? pointObj, out double lat, out double lon)
+        {
+            lat = 0;
+            lon = 0;
+            if (pointObj is null) return false;
+
+            // Direct Lat/Lon properties.
+            var pType = pointObj.GetType();
+            var latProp = pType.GetProperty("Lat") ?? pType.GetProperty("Latitude");
+            var lonProp = pType.GetProperty("Lon") ?? pType.GetProperty("Longitude");
+            if (latProp != null && lonProp != null)
+            {
+                if (double.TryParse(latProp.GetValue(pointObj)?.ToString(), out lat) &&
+                    double.TryParse(lonProp.GetValue(pointObj)?.ToString(), out lon))
+                    return true;
+            }
+
+            // Nullable-wrapper style: point.Value.Lat / point.Value.Lon.
+            var valueProp = pType.GetProperty("Value");
+            var valueObj = valueProp?.GetValue(pointObj);
+            if (valueObj != null)
+            {
+                var vType = valueObj.GetType();
+                var vLat = vType.GetProperty("Lat") ?? vType.GetProperty("Latitude");
+                var vLon = vType.GetProperty("Lon") ?? vType.GetProperty("Longitude");
+                if (vLat != null && vLon != null)
+                {
+                    if (double.TryParse(vLat.GetValue(valueObj)?.ToString(), out lat) &&
+                        double.TryParse(vLon.GetValue(valueObj)?.ToString(), out lon))
+                        return true;
+                }
+            }
+
+            return false;
         }
 
         private async Task UpdateSeverityOutlineOnMapAsync()
@@ -211,6 +302,140 @@ namespace ThunderApp.Views
                 await MapView.CoreWebView2.ExecuteScriptAsync($"setSpcOpacity({s.ToString(System.Globalization.CultureInfo.InvariantCulture)});");
             }
             catch { }
+        }
+
+
+        public Task SetWeatherStationsOnMapAsync(IReadOnlyList<ObservationStationModel> stations, ObservationStationModel? activeStation, ObservationModel? activeObservation, IReadOnlyDictionary<string, ObservationModel?>? stationObservations = null)
+        {
+            if (!Dispatcher.CheckAccess())
+            {
+                return Dispatcher.InvokeAsync(() => SetWeatherStationsOnMapAsync(stations, activeStation, activeObservation, stationObservations)).Task.Unwrap();
+            }
+
+            return SetWeatherStationsOnMapCoreAsync(stations, activeStation, activeObservation, stationObservations);
+        }
+
+        private async Task SetWeatherStationsOnMapCoreAsync(IReadOnlyList<ObservationStationModel> stations, ObservationStationModel? activeStation, ObservationModel? activeObservation, IReadOnlyDictionary<string, ObservationModel?>? stationObservations)
+        {
+            if (!_mapReady || MapView?.CoreWebView2 == null) return;
+
+            _lastStations = stations ?? Array.Empty<ObservationStationModel>();
+            _lastActiveStation = activeStation;
+            _lastActiveObservation = activeObservation;
+            _lastStationObservations = stationObservations;
+
+            try
+            {
+                var payload = new
+                {
+                    activeStationId = activeStation?.StationIdentifier,
+                    stations = stations?.Select(s => new
+                    {
+                        id = s.StationIdentifier,
+                        name = s.Name,
+                        timeZone = s.TimeZone,
+                        lat = s.Coordinates.Latitude,
+                        lon = s.Coordinates.Longitude,
+                        isActive = string.Equals(s.StationIdentifier, activeStation?.StationIdentifier, StringComparison.OrdinalIgnoreCase),
+                        observation = (stationObservations != null && s.StationIdentifier != null && stationObservations.TryGetValue(s.StationIdentifier, out var stObs) ? stObs : null) is ObservationModel obsModel
+                            ? new
+                            {
+                                timestamp = obsModel.Timestamp,
+                                temp = ConvertTemperature(obsModel.Temperature),
+                                tempUnit = TemperatureUnitLabel(),
+                                dew = ConvertTemperature(obsModel.DewPoint),
+                                dewUnit = TemperatureUnitLabel(),
+                                rh = obsModel.RelativeHumidity,
+                                wind = ConvertWind(obsModel.Wind?.Speed),
+                                windUnit = WindUnitLabel(),
+                                windDir = obsModel.Wind?.Direction?.ToString(),
+                                pressure = ConvertPressure(obsModel.BarometricPressure),
+                                pressureUnit = PressureUnitLabel()
+                            }
+                            : (activeObservation != null && string.Equals(s.StationIdentifier, activeStation?.StationIdentifier, StringComparison.OrdinalIgnoreCase)
+                                ? new
+                                {
+                                    timestamp = activeObservation.Timestamp,
+                                    temp = ConvertTemperature(activeObservation.Temperature),
+                                    tempUnit = TemperatureUnitLabel(),
+                                    dew = ConvertTemperature(activeObservation.DewPoint),
+                                    dewUnit = TemperatureUnitLabel(),
+                                    rh = activeObservation.RelativeHumidity,
+                                    wind = ConvertWind(activeObservation.Wind?.Speed),
+                                    windUnit = WindUnitLabel(),
+                                    windDir = activeObservation.Wind?.Direction?.ToString(),
+                                    pressure = ConvertPressure(activeObservation.BarometricPressure),
+                                    pressureUnit = PressureUnitLabel()
+                                }
+                                : null)
+                    })
+                };
+
+                string json = JsonSerializer.Serialize(payload);
+                await MapView.CoreWebView2.ExecuteScriptAsync($"setWeatherStations({json});");
+            }
+            catch
+            {
+            }
+        }
+
+        private double? ConvertTemperature(MeteorologyCore.Temperature? t)
+        {
+            if (t?.Value is not double celsius) return null;
+            return _unitSettings.TemperatureUnit == TemperatureUnit.Celsius
+                ? celsius
+                : t.ToFahrenheit().Value;
+        }
+
+        private string TemperatureUnitLabel()
+            => _unitSettings.TemperatureUnit == TemperatureUnit.Celsius ? "°C" : "°F";
+
+        private double? ConvertWind(double? mph)
+        {
+            if (mph is null) return null;
+            return _unitSettings.WindSpeedUnit switch
+            {
+                WindSpeedUnit.Kts => mph.Value * 0.868976,
+                WindSpeedUnit.Mps => mph.Value * 0.44704,
+                _ => mph.Value
+            };
+        }
+
+        private string WindUnitLabel()
+            => _unitSettings.WindSpeedUnit switch
+            {
+                WindSpeedUnit.Kts => "kt",
+                WindSpeedUnit.Mps => "m/s",
+                _ => "mph"
+            };
+
+        private double? ConvertPressure(MeteorologyCore.Pressure? p)
+        {
+            if (p?.Value is not double pa) return null;
+            return _unitSettings.PressureUnit switch
+            {
+                PressureUnit.HPa => pa / 100.0,
+                PressureUnit.Pa => pa,
+                _ => pa / 3386.389
+            };
+        }
+
+        private string PressureUnitLabel()
+            => _unitSettings.PressureUnit switch
+            {
+                PressureUnit.HPa => "hPa",
+                PressureUnit.Pa => "Pa",
+                _ => "inHg"
+            };
+
+
+        private async Task UpdateWeatherStationsVisibilityOnMapAsync()
+        {
+            if (!_mapReady || MapView?.CoreWebView2 == null) return;
+            _vm ??= DataContext as DashboardViewModel;
+            if (_vm?.FilterSettings == null) return;
+
+            await MapView.CoreWebView2.ExecuteScriptAsync($"setWeatherStationsVisible({(_vm.FilterSettings.ShowWeatherStations ? "true" : "false")});");
         }
 
 private void ApplySavedAlertsMapSplit()
@@ -414,8 +639,10 @@ private void ApplySavedAlertsMapSplit()
                 _ = QueueAlertPolygonUpdateAsync();
                 _ = UpdateRangeCircleOnMapAsync();
                 _ = UpdateSpcOverlaysOnMapAsync();
+                _ = UpdateWeatherStationsVisibilityOnMapAsync();
                 // Push palette + severity visuals immediately on first load.
                 _ = UpdateMapStylingOnMapAsync();
+                _ = ApplyMapThemeAsync();
             };
 
             MapView.Source = new Uri("https://app/map.html");
@@ -676,12 +903,6 @@ private async void RadarFrames_ValueChanged(object sender, RoutedPropertyChanged
             if (!_mapReady || MapView?.CoreWebView2 == null)
                 return;
 
-            if (addTrail && _lastLat.HasValue && _lastLon.HasValue)
-            {
-                double meters = HaversineMeters(_lastLat.Value, _lastLon.Value, lat, lon);
-                if (meters < MinTrailMoveMeters)
-                    addTrail = false;
-            }
 
             _lastLat = lat;
             _lastLon = lon;

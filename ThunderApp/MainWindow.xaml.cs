@@ -2,10 +2,12 @@
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Input;
 using System.Windows.Threading;
 using GeoJsonWeather;
 using GeoJsonWeather.Models;
@@ -41,14 +43,45 @@ namespace ThunderApp
         private string SerialPortName { get; set; } = "COM5";
 
         private SeriesCollection _seriesCollection = null!;
-        private List<double> temperatureData = null!;
-        private List<double> dewPointData = null!;
-        private List<double> windData = null!;
-
         // Weather station streaming (nearest station to current location).
         private CancellationTokenSource? _wxStreamCts;
         private Task? _wxStreamTask;
         private ThunderApp.Models.GeoPoint? _wxStreamAnchor;
+
+        private readonly JsonSettingsService<UnitSettings> _unitSettingsStore = new("unitSettings.json");
+        private UnitSettings _unitSettings = new();
+        private int _wxConsecutiveFailures;
+        private DateTime _wxBackoffUntilUtc = DateTime.MinValue;
+        private StationObservationSnapshot? _lastStationSnapshot;
+
+        // Keep chart history in base units (C, C, mph) so unit switches can re-render instantly.
+        private readonly List<double> _tempHistoryC = new();
+        private readonly List<double> _dewHistoryC = new();
+        private readonly List<double> _windHistoryMph = new();
+
+
+
+        public static readonly RoutedUICommand OpenUnitSettingsCommand = new(
+            "Units and Theme",
+            nameof(OpenUnitSettingsCommand),
+            typeof(MainWindow),
+            new InputGestureCollection { new KeyGesture(Key.U, ModifierKeys.Control) });
+
+        private static TimeSpan ComputeWxBackoff(int failures, bool isForbidden)
+        {
+            int exp = Math.Min(6, Math.Max(0, failures - 1));
+            int seconds = (int)Math.Pow(2, exp); // 1,2,4,8,16,32,64
+            if (isForbidden)
+                seconds = Math.Max(15, seconds);
+
+            return TimeSpan.FromSeconds(Math.Min(120, seconds));
+        }
+
+        private void ResetWxBackoff()
+        {
+            _wxConsecutiveFailures = 0;
+            _wxBackoffUntilUtc = DateTime.MinValue;
+        }
 
         public MainWindow()
         {
@@ -57,15 +90,12 @@ namespace ThunderApp
             Title = "GPS Monitor";
             InitializeGPS();
             Loaded += MainWindow_Loaded;
+            CommandBindings.Add(new CommandBinding(OpenUnitSettingsCommand, OpenUnitSettings_Executed));
         }
         
         
         private void InitializeChart()
         {
-            temperatureData = new List<double>();
-            dewPointData    = new List<double>();
-            windData        = new List<double>();
-            
             _seriesCollection = new SeriesCollection()
             {
                 new LineSeries
@@ -92,6 +122,7 @@ namespace ThunderApp
         private void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
             _appCts = new CancellationTokenSource();
+            _unitSettings = _unitSettingsStore.Load() ?? new UnitSettings();
 
             // Core app services.
             var alerts = new NwsAlertsService("ThunderApp");
@@ -129,6 +160,7 @@ namespace ThunderApp
 
             _dashboardVm = new DashboardViewModel(alerts, gps, log, settings, zones, spcText);
             Dashboard.DataContext = _dashboardVm;
+            _ = Dashboard.SetUnitSettingsAsync(_unitSettings);
 
             _ = InitializeAsync(_appCts.Token);
         }
@@ -224,13 +256,22 @@ namespace ThunderApp
 
                     if (needRestart)
                     {
-                        try { _wxStreamCts?.Cancel(); } catch { }
-                        _wxStreamCts?.Dispose();
+                        var nowUtc = DateTime.UtcNow;
+                        if (nowUtc < _wxBackoffUntilUtc)
+                        {
+                            var remaining = (_wxBackoffUntilUtc - nowUtc).TotalSeconds;
+                            DiskLogService.Current?.Log($"WX: backoff active, delaying restart for {Math.Ceiling(remaining)}s");
+                        }
+                        else
+                        {
+                            try { _wxStreamCts?.Cancel(); } catch { }
+                            _wxStreamCts?.Dispose();
 
-                        _wxStreamCts = CancellationTokenSource.CreateLinkedTokenSource(appCt);
-                        _wxStreamAnchor = loc;
+                            _wxStreamCts = CancellationTokenSource.CreateLinkedTokenSource(appCt);
+                            _wxStreamAnchor = loc;
 
-                        _wxStreamTask = Task.Run(() => ConsumeObservationStreamAsync(loc.Value, _wxStreamCts.Token), _wxStreamCts.Token);
+                            _wxStreamTask = Task.Run(() => ConsumeObservationStreamAsync(loc.Value, _wxStreamCts.Token), _wxStreamCts.Token);
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -250,10 +291,12 @@ namespace ThunderApp
             try
             {
                 DiskLogService.Current?.Log($"WX: ConsumeObservationStreamAsync start loc={loc.Lat:0.0000},{loc.Lon:0.0000}");
-                await foreach (ObservationModel? model in ObservationManager.GetNearestObservations(loc.Lat, loc.Lon, ct))
+                await foreach (var snapshot in ObservationManager.GetNearestObservations(loc.Lat, loc.Lon, ct))
                 {
                     if (ct.IsCancellationRequested) break;
+                    var model = snapshot.Observation;
                     if (model is null) continue;
+                    _lastStationSnapshot = snapshot;
 
                     if (!_wxLoggedFirstObs)
                     {
@@ -261,33 +304,45 @@ namespace ThunderApp
                         DiskLogService.Current?.Log($"WX: first obs ts={model.Timestamp:o} tempC={model.Temperature.Value} dpC={model.DewPoint.Value}");
                     }
 
+                    if (_wxConsecutiveFailures > 0)
+                        DiskLogService.Current?.Log("WX: stream recovered; clearing backoff state");
+                    ResetWxBackoff();
+
+                    if (snapshot.ActiveStation?.StationIdentifier is string sid)
+                        DiskLogService.Current?.Log($"WX active station id={sid} name={snapshot.ActiveStation.Name}");
+
+                    _ = Dashboard?.SetWeatherStationsOnMapAsync(snapshot.Stations, snapshot.ActiveStation, model, snapshot.StationObservations);
+
                     // Never block the UI thread: BeginInvoke instead of Invoke.
                     Dispatcher.BeginInvoke(new Action(() =>
                     {
                         try
                         {
-                            AirTemperature.Text = model.Temperature.ToFahrenheit().ToString();
-                            DewPoint.Text = model.DewPoint.ToFahrenheit().ToString();
+                            AirTemperature.Text = FormatTemperature(model.Temperature);
+                            DewPoint.Text = FormatTemperature(model.DewPoint);
 
                             // Wind can be missing in some obs payloads.
-                            if (model.Wind is not null)
-                                Wind.Text = $"{Math.Round(model.Wind.Speed)} ({model.Wind.Direction})";
-                            else
-                                Wind.Text = "--";
+                            Wind.Text = FormatWind(model.Wind);
 
                             LastUpdate.Text = model.Timestamp.ToLocalTime().ToString(CultureInfo.CurrentCulture);
 
-                            if (model.Temperature.ToFahrenheit().Value is double t)
-                                temperatureData.Add(t);
-                            if (model.DewPoint.ToFahrenheit().Value is double d)
-                                dewPointData.Add(d);
+                            ActiveStation.Text = snapshot.ActiveStation?.StationIdentifier ?? "--";
+                            StationName.Text = snapshot.ActiveStation?.Name ?? "--";
+                            StationTz.Text = snapshot.ActiveStation?.TimeZone ?? "--";
+                            RelativeHumidity.Text = $"{Math.Round(model.RelativeHumidity)}%";
+                            HeatIndex.Text = FormatTemperature(model.HeatIndex);
+                            WindChill.Text = FormatTemperature(model.WindChill);
+                            BarometricPressure.Text = FormatPressure(model.BarometricPressure);
+                            SeaLevelPressure.Text = FormatPressure(model.SeaLevelPressure);
 
-                            if (model.Wind is not null)
-                                windData.Add(model.Wind.Speed);
+                            if (model.Temperature?.Value is double tC)
+                                _tempHistoryC.Add(tC);
+                            if (model.DewPoint?.Value is double dC)
+                                _dewHistoryC.Add(dC);
+                            if (model.Wind?.Speed is double wMph)
+                                _windHistoryMph.Add(wMph);
 
-                            _seriesCollection[0].Values = new ChartValues<double>(temperatureData);
-                            _seriesCollection[1].Values = new ChartValues<double>(dewPointData);
-                            _seriesCollection[2].Values = new ChartValues<double>(windData);
+                            RefreshChartSeries();
                         }
                         catch
                         {
@@ -298,6 +353,15 @@ namespace ThunderApp
             }
             catch (Exception ex)
             {
+                if (!ct.IsCancellationRequested)
+                {
+                    _wxConsecutiveFailures++;
+                    bool isForbidden = ex is HttpRequestException hre && hre.Message.Contains("HTTP 403", StringComparison.OrdinalIgnoreCase);
+                    var delay = ComputeWxBackoff(_wxConsecutiveFailures, isForbidden);
+                    _wxBackoffUntilUtc = DateTime.UtcNow.Add(delay);
+                    DiskLogService.Current?.Log($"WX: stream failure {_wxConsecutiveFailures}; backoff {delay.TotalSeconds:0}s (forbidden={isForbidden})");
+                }
+
                 // If the stream dies early (points/zone/station fetch), surface it.
                 Dispatcher.BeginInvoke(new Action(() =>
                 {
@@ -307,12 +371,122 @@ namespace ThunderApp
                         DewPoint.Text = "--";
                         Wind.Text = "--";
                         LastUpdate.Text = "WX error";
+                        ActiveStation.Text = "--";
+                        StationName.Text = "--";
+                        StationTz.Text = "--";
+                        RelativeHumidity.Text = "--";
+                        HeatIndex.Text = "--";
+                        WindChill.Text = "--";
+                        BarometricPressure.Text = "--";
+                        SeaLevelPressure.Text = "--";
                     }
                     catch { }
                 }));
 
                 DiskLogService.Current?.LogException("WX stream", ex);
             }
+        }
+
+
+        private string FormatTemperature(MeteorologyCore.Temperature? t)
+        {
+            if (ConvertTemperatureValue(t) is not double value) return "--";
+            return _unitSettings.TemperatureUnit == TemperatureUnit.Celsius
+                ? $"{value:0.0} °C"
+                : $"{value:0.0} °F";
+        }
+
+        private double? ConvertTemperatureValue(MeteorologyCore.Temperature? t)
+        {
+            if (t?.Value is not double c) return null;
+            return _unitSettings.TemperatureUnit == TemperatureUnit.Celsius ? c : t.ToFahrenheit().Value;
+        }
+
+        private string FormatWind(MeteorologyCore.Wind? wind)
+        {
+            if (wind is null) return "--";
+            var val = ConvertWindValue(wind.Speed);
+            if (val is null) return "--";
+            var unit = _unitSettings.WindSpeedUnit switch
+            {
+                WindSpeedUnit.Kts => "kt",
+                WindSpeedUnit.Mps => "m/s",
+                _ => "mph"
+            };
+
+            return $"{Math.Round(val.Value)} {unit} ({wind.Direction})";
+        }
+
+        private double? ConvertWindValue(double? mph)
+        {
+            if (mph is null) return null;
+            return _unitSettings.WindSpeedUnit switch
+            {
+                WindSpeedUnit.Kts => mph.Value * 0.868976,
+                WindSpeedUnit.Mps => mph.Value * 0.44704,
+                _ => mph.Value
+            };
+        }
+
+        private string FormatPressure(MeteorologyCore.Pressure? p)
+        {
+            if (p is null) return "--";
+            double pa = p.Value;
+            return _unitSettings.PressureUnit switch
+            {
+                PressureUnit.HPa => $"{(pa / 100.0):0.00} hPa",
+                PressureUnit.Pa => $"{pa:0.0} Pa",
+                _ => $"{(pa / 3386.389):0.00} inHg"
+            };
+        }
+
+        private void RefreshChartSeries()
+        {
+            _seriesCollection[0].Values = new ChartValues<double>(_tempHistoryC.Select(v =>
+                _unitSettings.TemperatureUnit == TemperatureUnit.Celsius ? v : (v * 9.0 / 5.0) + 32.0));
+            _seriesCollection[1].Values = new ChartValues<double>(_dewHistoryC.Select(v =>
+                _unitSettings.TemperatureUnit == TemperatureUnit.Celsius ? v : (v * 9.0 / 5.0) + 32.0));
+            _seriesCollection[2].Values = new ChartValues<double>(_windHistoryMph.Select(v => ConvertWindValue(v) ?? v));
+        }
+
+        private async Task RefreshLatestWeatherPresentationAsync()
+        {
+            var snap = _lastStationSnapshot;
+            var model = snap?.Observation;
+            if (snap is null || model is null) return;
+
+            AirTemperature.Text = FormatTemperature(model.Temperature);
+            DewPoint.Text = FormatTemperature(model.DewPoint);
+            Wind.Text = FormatWind(model.Wind);
+            LastUpdate.Text = model.Timestamp.ToLocalTime().ToString(CultureInfo.CurrentCulture);
+
+            ActiveStation.Text = snap.ActiveStation?.StationIdentifier ?? "--";
+            StationName.Text = snap.ActiveStation?.Name ?? "--";
+            StationTz.Text = snap.ActiveStation?.TimeZone ?? "--";
+            RelativeHumidity.Text = $"{Math.Round(model.RelativeHumidity)}%";
+            HeatIndex.Text = FormatTemperature(model.HeatIndex);
+            WindChill.Text = FormatTemperature(model.WindChill);
+            BarometricPressure.Text = FormatPressure(model.BarometricPressure);
+            SeaLevelPressure.Text = FormatPressure(model.SeaLevelPressure);
+
+            RefreshChartSeries();
+            await Dashboard.SetWeatherStationsOnMapAsync(snap.Stations, snap.ActiveStation, model, snap.StationObservations);
+        }
+
+        private async Task ApplyUnitSettingsAsync()
+        {
+            _unitSettingsStore.Save(_unitSettings);
+            await Dashboard.SetUnitSettingsAsync(_unitSettings);
+            await RefreshLatestWeatherPresentationAsync();
+        }
+
+        private async void OpenUnitSettings_Executed(object sender, ExecutedRoutedEventArgs e)
+        {
+            var win = new UnitSettingsWindow(_unitSettings) { Owner = this };
+            if (win.ShowDialog() != true) return;
+
+            _unitSettings = win.Result;
+            await ApplyUnitSettingsAsync();
         }
 
         private void InitializeGPS()
