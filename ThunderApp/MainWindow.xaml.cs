@@ -69,6 +69,28 @@ namespace ThunderApp
             _wxBackoffUntilUtc = DateTime.MinValue;
         }
 
+        private enum PressureDisplayUnit { InHg, HPa, Pa }
+        private PressureDisplayUnit _pressureUnit = PressureDisplayUnit.InHg;
+        private int _wxConsecutiveFailures;
+        private DateTime _wxBackoffUntilUtc = DateTime.MinValue;
+
+
+        private static TimeSpan ComputeWxBackoff(int failures, bool isForbidden)
+        {
+            int exp = Math.Min(6, Math.Max(0, failures - 1));
+            int seconds = (int)Math.Pow(2, exp); // 1,2,4,8,16,32,64
+            if (isForbidden)
+                seconds = Math.Max(15, seconds);
+
+            return TimeSpan.FromSeconds(Math.Min(120, seconds));
+        }
+
+        private void ResetWxBackoff()
+        {
+            _wxConsecutiveFailures = 0;
+            _wxBackoffUntilUtc = DateTime.MinValue;
+        }
+
         public MainWindow()
         {
             InitializeComponent();
@@ -297,7 +319,7 @@ namespace ThunderApp
                     if (snapshot.ActiveStation?.StationIdentifier is string sid)
                         DiskLogService.Current?.Log($"WX active station id={sid} name={snapshot.ActiveStation.Name}");
 
-                    _ = Dashboard?.SetWeatherStationsOnMapAsync(snapshot.Stations, snapshot.ActiveStation, model);
+                    _ = Dashboard?.SetWeatherStationsOnMapAsync(snapshot.Stations, snapshot.ActiveStation, model, snapshot.StationObservations);
 
                     // Never block the UI thread: BeginInvoke instead of Invoke.
                     Dispatcher.BeginInvoke(new Action(() =>
@@ -321,8 +343,8 @@ namespace ThunderApp
                             RelativeHumidity.Text = $"{Math.Round(model.RelativeHumidity)}%";
                             HeatIndex.Text = model.HeatIndex is not null ? model.HeatIndex.ToFahrenheit().ToString() : "--";
                             WindChill.Text = model.WindChill is not null ? model.WindChill.ToFahrenheit().ToString() : "--";
-                            BarometricPressure.Text = model.BarometricPressure is not null ? $"{model.BarometricPressure.Value:0.0} Pa" : "--";
-                            SeaLevelPressure.Text = model.SeaLevelPressure is not null ? $"{model.SeaLevelPressure.Value:0.0} Pa" : "--";
+                            BarometricPressure.Text = FormatPressure(model.BarometricPressure);
+                            SeaLevelPressure.Text = FormatPressure(model.SeaLevelPressure);
 
                             if (model.Temperature.ToFahrenheit().Value is double t)
                                 temperatureData.Add(t);
@@ -378,6 +400,31 @@ namespace ThunderApp
                 DiskLogService.Current?.LogException("WX stream", ex);
             }
         }
+
+
+        private string FormatPressure(MeteorologyCore.Pressure? p)
+        {
+            if (p is null) return "--";
+            double pa = p.Value;
+            return _pressureUnit switch
+            {
+                PressureDisplayUnit.HPa => $"{(pa / 100.0):0.00} hPa",
+                PressureDisplayUnit.Pa => $"{pa:0.0} Pa",
+                _ => $"{(pa / 3386.389):0.00} inHg"
+            };
+        }
+
+        private void SetPressureUnit(PressureDisplayUnit unit)
+        {
+            _pressureUnit = unit;
+            InHgUnitMenuItem.IsChecked = unit == PressureDisplayUnit.InHg;
+            HpaUnitMenuItem.IsChecked = unit == PressureDisplayUnit.HPa;
+            PaUnitMenuItem.IsChecked = unit == PressureDisplayUnit.Pa;
+        }
+
+        private void PressureUnitInHg_OnClick(object sender, RoutedEventArgs e) => SetPressureUnit(PressureDisplayUnit.InHg);
+        private void PressureUnitHpa_OnClick(object sender, RoutedEventArgs e) => SetPressureUnit(PressureDisplayUnit.HPa);
+        private void PressureUnitPa_OnClick(object sender, RoutedEventArgs e) => SetPressureUnit(PressureDisplayUnit.Pa);
 
         private void InitializeGPS()
         {

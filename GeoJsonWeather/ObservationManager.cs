@@ -74,26 +74,39 @@ public class ObservationManager
                GeoHelper.IsPointInPolygon(latitude, longitude, zone.ZonePolygonCoordinates))
         {
             ObservationStationModel nearest = FindNearestStation(latitude, longitude, stations);
-            var obsUrl = $"https://api.weather.gov/stations/{nearest.StationIdentifier}/observations/latest";
+            var stationObs = new Dictionary<string, ObservationModel?>(StringComparer.OrdinalIgnoreCase);
 
-            ObservationModel? obs = null;
-            WebData.Logger?.Invoke($"WX obs latest url={obsUrl}");
-            try
+            foreach (var st in stations)
             {
-                var obsMgr = new ApiManager(new ApiFetcher(string.Empty, obsUrl));
-                obs = await obsMgr.GetModelAsync(new ObservationParser(), ct);
+                var sid = st.StationIdentifier;
+                if (string.IsNullOrWhiteSpace(sid))
+                    continue;
+
+                var obsUrl = $"https://api.weather.gov/stations/{sid}/observations/latest";
+                ObservationModel? obs = null;
+                WebData.Logger?.Invoke($"WX obs latest url={obsUrl}");
+                try
+                {
+                    var obsMgr = new ApiManager(new ApiFetcher(string.Empty, obsUrl));
+                    obs = await obsMgr.GetModelAsync(new ObservationParser(), ct);
+                }
+                catch
+                {
+                }
+
+                stationObs[sid] = obs;
             }
-            catch
-            {
-                // Bulletproof behavior: don't crash the stream loop.
-                // Later we’ll add “last known good” + stale flag.
-            }
+
+            ObservationModel? activeObs = null;
+            if (!string.IsNullOrWhiteSpace(nearest.StationIdentifier))
+                stationObs.TryGetValue(nearest.StationIdentifier, out activeObs);
 
             yield return new StationObservationSnapshot
             {
-                Observation = obs,
+                Observation = activeObs,
                 ActiveStation = nearest,
-                Stations = stations
+                Stations = stations,
+                StationObservations = stationObs
             };
 
             // Delay AFTER yielding so you get an immediate first update.

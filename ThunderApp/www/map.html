@@ -68,6 +68,14 @@
 
         .radar-line{ white-space: nowrap; }
         .radar-muted{ color: rgba(229,231,235,0.72); font-size: 12px; }
+
+        .station-model{ position:relative; width:72px; height:48px; pointer-events:none; }
+        .station-model .dot{ position:absolute; left:30px; top:20px; width:10px; height:10px; border-radius:50%; border:2px solid #0b1220; }
+        .station-model.active .dot{ background:#fb923c; border-color:#f97316; }
+        .station-model.idle .dot{ background:#7dd3fc; border-color:#38bdf8; }
+        .station-model .temp{ position:absolute; left:0; top:0; font:600 12px "Segoe UI"; color:#e5e7eb; text-shadow:0 1px 1px #000; }
+        .station-model .dew{ position:absolute; left:0; bottom:0; font:600 12px "Segoe UI"; color:#93c5fd; text-shadow:0 1px 1px #000; }
+        .station-model .wind{ position:absolute; right:0; top:0; font:600 11px "Segoe UI"; color:#f8fafc; text-shadow:0 1px 1px #000; }
 </style>
 </head>
 <body>
@@ -345,17 +353,16 @@ window.setSpcOpacity = function(v){
         for (const st of payload.stations) {
             if (typeof st?.lat !== 'number' || typeof st?.lon !== 'number') continue;
             const isActive = !!st.isActive;
-            const marker = L.circleMarker([st.lat, st.lon], {
-                radius: isActive ? 7 : 5,
-                weight: isActive ? 2 : 1,
-                color: isActive ? '#f97316' : '#38bdf8',
-                fillColor: isActive ? '#fb923c' : '#7dd3fc',
-                fillOpacity: isActive ? 0.95 : 0.75,
-                opacity: 0.95
+            const obs = st.observation || null;
+            const fmt = (v, d=0) => (typeof v === 'number' && Number.isFinite(v)) ? Number(v).toFixed(d) : '--';
+            const iconHtml = `<div class="station-model ${isActive ? 'active' : 'idle'}"><div class="temp">${fmt(obs?.tempF)}°</div><div class="dew">${fmt(obs?.dewF)}°</div><div class="wind">${fmt(obs?.windMph)} ${obs?.windDir || ''}</div><div class="dot"></div></div>`;
+            const marker = L.marker([st.lat, st.lon], {
+                icon: L.divIcon({ className: '', html: iconHtml, iconSize: [72, 48], iconAnchor: [36, 24] })
             });
 
             const title = `<div style="font-weight:600">${st.id || 'Station'} — ${st.name || ''}</div><div style="font-size:12px;color:#94a3b8">${st.timeZone || ''}</div>`;
-            marker.bindPopup(`<div style="min-width:280px;max-width:420px">${title}${formatObsPopup(st)}</div>`);
+            const pressureLine = (obs && typeof obs.pressureInHg === 'number') ? `<div><b>Pressure:</b> ${obs.pressureInHg.toFixed(2)} inHg</div>` : '';
+            marker.bindPopup(`<div style="min-width:320px;max-width:460px">${title}${formatObsPopup(st)}${pressureLine}</div>`);
             marker.addTo(wxStations.layer);
             if (st.id) wxStations.byId.set(st.id, marker);
         }
@@ -1042,8 +1049,6 @@ window.setSpcOpacity = function(v){
                     }
                 } catch {}
             });
-
-            layer.bindPopup(`<b>${p.event || "Alert"}</b><br>${p.headline || ""}`);
 
             layer.on("click", () => {
                 if (!p.id) return;

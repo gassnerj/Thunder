@@ -284,17 +284,17 @@ namespace ThunderApp.Views
         }
 
 
-        public Task SetWeatherStationsOnMapAsync(IReadOnlyList<ObservationStationModel> stations, ObservationStationModel? activeStation, ObservationModel? activeObservation)
+        public Task SetWeatherStationsOnMapAsync(IReadOnlyList<ObservationStationModel> stations, ObservationStationModel? activeStation, ObservationModel? activeObservation, IReadOnlyDictionary<string, ObservationModel?>? stationObservations = null)
         {
             if (!Dispatcher.CheckAccess())
             {
-                return Dispatcher.InvokeAsync(() => SetWeatherStationsOnMapAsync(stations, activeStation, activeObservation)).Task.Unwrap();
+                return Dispatcher.InvokeAsync(() => SetWeatherStationsOnMapAsync(stations, activeStation, activeObservation, stationObservations)).Task.Unwrap();
             }
 
-            return SetWeatherStationsOnMapCoreAsync(stations, activeStation, activeObservation);
+            return SetWeatherStationsOnMapCoreAsync(stations, activeStation, activeObservation, stationObservations);
         }
 
-        private async Task SetWeatherStationsOnMapCoreAsync(IReadOnlyList<ObservationStationModel> stations, ObservationStationModel? activeStation, ObservationModel? activeObservation)
+        private async Task SetWeatherStationsOnMapCoreAsync(IReadOnlyList<ObservationStationModel> stations, ObservationStationModel? activeStation, ObservationModel? activeObservation, IReadOnlyDictionary<string, ObservationModel?>? stationObservations)
         {
             if (!_mapReady || MapView?.CoreWebView2 == null) return;
 
@@ -311,17 +311,29 @@ namespace ThunderApp.Views
                         lat = s.Coordinates.Latitude,
                         lon = s.Coordinates.Longitude,
                         isActive = string.Equals(s.StationIdentifier, activeStation?.StationIdentifier, StringComparison.OrdinalIgnoreCase),
-                        observation = activeObservation != null && string.Equals(s.StationIdentifier, activeStation?.StationIdentifier, StringComparison.OrdinalIgnoreCase)
+                        observation = (stationObservations != null && s.StationIdentifier != null && stationObservations.TryGetValue(s.StationIdentifier, out var stObs) ? stObs : null) is ObservationModel obsModel
                             ? new
                             {
-                                timestamp = activeObservation.Timestamp,
-                                tempF = activeObservation.Temperature?.ToFahrenheit().Value,
-                                dewF = activeObservation.DewPoint?.ToFahrenheit().Value,
-                                rh = activeObservation.RelativeHumidity,
-                                windMph = activeObservation.Wind?.Speed,
-                                windDir = activeObservation.Wind?.Direction?.ToString()
+                                timestamp = obsModel.Timestamp,
+                                tempF = obsModel.Temperature?.ToFahrenheit().Value,
+                                dewF = obsModel.DewPoint?.ToFahrenheit().Value,
+                                rh = obsModel.RelativeHumidity,
+                                windMph = obsModel.Wind?.Speed,
+                                windDir = obsModel.Wind?.Direction?.ToString(),
+                                pressureInHg = obsModel.BarometricPressure is not null ? (obsModel.BarometricPressure.Value / 3386.389) : (double?)null
                             }
-                            : null
+                            : (activeObservation != null && string.Equals(s.StationIdentifier, activeStation?.StationIdentifier, StringComparison.OrdinalIgnoreCase)
+                                ? new
+                                {
+                                    timestamp = activeObservation.Timestamp,
+                                    tempF = activeObservation.Temperature?.ToFahrenheit().Value,
+                                    dewF = activeObservation.DewPoint?.ToFahrenheit().Value,
+                                    rh = activeObservation.RelativeHumidity,
+                                    windMph = activeObservation.Wind?.Speed,
+                                    windDir = activeObservation.Wind?.Direction?.ToString(),
+                                    pressureInHg = activeObservation.BarometricPressure is not null ? (activeObservation.BarometricPressure.Value / 3386.389) : (double?)null
+                                }
+                                : null)
                     })
                 };
 
