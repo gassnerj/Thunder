@@ -170,13 +170,21 @@ namespace ThunderApp
 
             _dashboardVm = new DashboardViewModel(alerts, gps, log, settings, zones, spcText);
             Dashboard.DataContext = _dashboardVm;
-            _ = Dashboard.SetUnitSettingsAsync(_unitSettings);
+            _ = Dashboard.SetUnitSettingsAsync(BuildDashboardUnitSettings());
 
             StartVmixDataApi();
 
             _ = InitializeAsync(_appCts.Token);
         }
 
+
+        private UnitSettings BuildDashboardUnitSettings()
+        {
+            var settings = _unitSettings.Clone();
+            if (string.IsNullOrWhiteSpace(settings.MapboxAccessToken))
+                settings.MapboxAccessToken = _appSettings.Mapbox.AccessToken ?? "";
+            return settings;
+        }
 
         private ILocationOverlayService BuildLocationOverlayService(HttpClient http, DiskLogService log)
         {
@@ -685,7 +693,7 @@ namespace ThunderApp
             if (_logService is not null)
                 _locationOverlayService = BuildLocationOverlayService(new HttpClient(), _logService);
 
-            await Dashboard.SetUnitSettingsAsync(_unitSettings);
+            await Dashboard.SetUnitSettingsAsync(BuildDashboardUnitSettings());
             await RefreshLatestWeatherPresentationAsync();
         }
 
