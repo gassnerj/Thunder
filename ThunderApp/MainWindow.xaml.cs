@@ -48,6 +48,7 @@ namespace ThunderApp
         private LocationOverlaySnapshot? _lastLocationOverlay;
         private AppSettings _appSettings = new();
         private string SerialPortName { get; set; } = "COM5";
+        private CompositeLocationProvider? _locationProvider;
 
         private SeriesCollection _seriesCollection = null!;
         // Weather station streaming (nearest station to current location).
@@ -170,6 +171,8 @@ namespace ThunderApp
             });
 
             _dashboardVm = new DashboardViewModel(alerts, gps, log, settings, zones, spcText);
+            _dashboardVm.PropertyChanged += DashboardVm_PropertyChanged;
+            ConfigureLocationProvider();
             Dashboard.DataContext = _dashboardVm;
             _ = Dashboard.SetUnitSettingsAsync(BuildDashboardUnitSettings());
 
@@ -374,6 +377,13 @@ namespace ThunderApp
 
         private void MainWindow_Closed(object? sender, EventArgs e)
         {
+            try
+            {
+                if (_dashboardVm is not null)
+                    _dashboardVm.PropertyChanged -= DashboardVm_PropertyChanged;
+            }
+            catch { }
+
             try { _appCts?.Cancel(); } catch { }
             try { _vmixApiHost?.Stop(); } catch { }
         }
@@ -403,8 +413,7 @@ namespace ThunderApp
             Task gpsLoop = Task.Run(async () =>
             {
                 while (await gpsTimer.WaitForNextTickAsync(ct))
-                    if (NMEA.Speed > -1)
-                        await UpdateLocation(_vmixLocation);
+                    await UpdateLocation(_vmixLocation);
             }, ct);
 
             await Task.CompletedTask; // loops run until ct is cancelled
@@ -412,25 +421,36 @@ namespace ThunderApp
 
         private ThunderApp.Models.GeoPoint? GetBestCurrentLocation()
         {
-            // Prefer the app's unified location (GPS or manual).
-            if (_dashboardVm?.CurrentLocation is ThunderApp.Models.GeoPoint p)
-                return p;
-
-            // If the VM exists but hasn't published CurrentLocation yet, fall back to its manual center.
-            // This fixes the "all blank" weather station at startup when no GPS puck is connected.
-            if (_dashboardVm?.FilterSettings is not null)
-            {
-                double lat = _dashboardVm.FilterSettings.ManualLat;
-                double lon = _dashboardVm.FilterSettings.ManualLon;
-                if (System.Math.Abs(lat) > 0.0001 && System.Math.Abs(lon) > 0.0001)
-                    return new ThunderApp.Models.GeoPoint(lat, lon);
-            }
-
-            // Fallback to last GPS fix if VM isn't ready yet.
-            if (NMEA is not null && NMEA.Status == "Valid Fix")
-                return new ThunderApp.Models.GeoPoint(NMEA.Latitude, NMEA.Longitude);
+            if (_locationProvider?.TryGetCurrent(out var reading) == true)
+                return reading.Point;
 
             return null;
+        }
+
+        private void ConfigureLocationProvider()
+        {
+            _locationProvider = new CompositeLocationProvider(
+                new DelegateLocationSource("GPS", TryGetGpsPoint),
+                new DelegateLocationSource("Manual", TryGetManualPoint));
+        }
+
+        private (bool ok, GeoPoint point) TryGetGpsPoint()
+        {
+            if (NMEA is not null && NMEA.Status == "Valid Fix")
+                return (true, new GeoPoint(NMEA.Latitude, NMEA.Longitude));
+            return (false, default);
+        }
+
+        private (bool ok, GeoPoint point) TryGetManualPoint()
+        {
+            if (_dashboardVm?.FilterSettings is null) return (false, default);
+
+            double lat = _dashboardVm.FilterSettings.ManualLat;
+            double lon = _dashboardVm.FilterSettings.ManualLon;
+            if (System.Math.Abs(lat) > 0.0001 && System.Math.Abs(lon) > 0.0001)
+                return (true, new GeoPoint(lat, lon));
+
+            return (false, default);
         }
 
         private static double KmToMiles(double km) => km * 0.621371;
@@ -763,10 +783,12 @@ namespace ThunderApp
 
         private async Task UpdateLocation(Vmix vmix)
         {
-            if (NMEA.Status != "Valid Fix")
+            if (_locationProvider?.TryGetCurrent(out var current) != true)
                 return;
 
-            var line = _lastLocationOverlay?.LocLine ?? $"{NMEA.Latitude:0.0000}, {NMEA.Longitude:0.0000}";
+            await RefreshLocationOverlayAsync(current.Point);
+
+            var line = _lastLocationOverlay?.LocLine ?? $"{current.Point.Lat:0.0000}, {current.Point.Lon:0.0000}";
             vmix.Value = line;
             string locationUrl = vmix.UpdateUrl();
             await Vmix.SendRequest(locationUrl);
@@ -846,6 +868,14 @@ namespace ThunderApp
         private void MenuItem_About_Click(object sender, RoutedEventArgs e)
         {
             throw new NotImplementedException();
+        }
+
+
+        private async void DashboardVm_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName != nameof(DashboardViewModel.CurrentLocation)) return;
+            if (_dashboardVm?.CurrentLocation is not GeoPoint point) return;
+            await RefreshLocationOverlayAsync(point);
         }
 
         private async Task RefreshLocationOverlayAsync(GeoPoint gps)
