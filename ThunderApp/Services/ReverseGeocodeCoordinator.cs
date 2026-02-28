@@ -202,10 +202,10 @@ public sealed class ReverseGeocodeCoordinator : ILocationOverlayService
 
             foreach (var f in features.EnumerateArray())
             {
-                var placeType = f.TryGetProperty("place_type", out var pt) && pt.ValueKind == JsonValueKind.Array && pt.GetArrayLength() > 0
-                    ? pt[0].GetString() ?? ""
-                    : "";
+                var placeType = ReadFeatureType(f);
                 string text = ReadFirst(f, "text", "name", "feature_name", "place_name");
+                if (string.IsNullOrWhiteSpace(text))
+                    text = ReadPropertyFirst(f, "name", "place_formatted", "full_address");
 
                 if (string.IsNullOrWhiteSpace(road) && (placeType is "address" or "poi"))
                     road = text;
@@ -243,6 +243,32 @@ public sealed class ReverseGeocodeCoordinator : ILocationOverlayService
                         if (string.IsNullOrWhiteSpace(state) && id.StartsWith("region.")) state = AbbrevState(!string.IsNullOrWhiteSpace(shortCode) ? shortCode : tx);
                     }
                 }
+
+                if (f.TryGetProperty("properties", out var props) && props.ValueKind == JsonValueKind.Object)
+                {
+                    if (string.IsNullOrWhiteSpace(city)
+                        && props.TryGetProperty("context", out var v6Ctx)
+                        && v6Ctx.ValueKind == JsonValueKind.Object)
+                    {
+                        if (v6Ctx.TryGetProperty("place", out var placeObj) && placeObj.ValueKind == JsonValueKind.Object)
+                            city = ReadFirst(placeObj, "name", "text");
+                        if (string.IsNullOrWhiteSpace(city)
+                            && v6Ctx.TryGetProperty("locality", out var locObj)
+                            && locObj.ValueKind == JsonValueKind.Object)
+                            city = ReadFirst(locObj, "name", "text");
+                    }
+
+                    if (string.IsNullOrWhiteSpace(state)
+                        && props.TryGetProperty("context", out var v6Ctx2)
+                        && v6Ctx2.ValueKind == JsonValueKind.Object
+                        && v6Ctx2.TryGetProperty("region", out var regionObj)
+                        && regionObj.ValueKind == JsonValueKind.Object)
+                    {
+                        string regionCode = ReadFirst(regionObj, "region_code", "short_code");
+                        string regionName = ReadFirst(regionObj, "name", "text");
+                        state = AbbrevState(!string.IsNullOrWhiteSpace(regionCode) ? regionCode : regionName);
+                    }
+                }
             }
 
             road = LocationOverlayFormatting.NormalizeRoadName(road);
@@ -268,6 +294,31 @@ public sealed class ReverseGeocodeCoordinator : ILocationOverlayService
                 if (!string.IsNullOrWhiteSpace(s)) return s;
             }
         }
+        return "";
+    }
+
+    private static string ReadPropertyFirst(JsonElement feature, params string[] names)
+    {
+        if (!feature.TryGetProperty("properties", out var props) || props.ValueKind != JsonValueKind.Object)
+            return "";
+        return ReadFirst(props, names);
+    }
+
+    private static string ReadFeatureType(JsonElement feature)
+    {
+        if (feature.TryGetProperty("place_type", out var placeTypeArr)
+            && placeTypeArr.ValueKind == JsonValueKind.Array
+            && placeTypeArr.GetArrayLength() > 0)
+        {
+            return placeTypeArr[0].GetString() ?? "";
+        }
+
+        if (feature.TryGetProperty("properties", out var props) && props.ValueKind == JsonValueKind.Object)
+        {
+            string type = ReadFirst(props, "feature_type", "type");
+            if (!string.IsNullOrWhiteSpace(type)) return type;
+        }
+
         return "";
     }
 
