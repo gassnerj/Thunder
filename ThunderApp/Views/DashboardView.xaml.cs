@@ -108,10 +108,18 @@ namespace ThunderApp.Views
         public async Task SetUnitSettingsAsync(UnitSettings settings)
         {
             _unitSettings = settings?.Clone() ?? new UnitSettings();
+            await ApplyMapProviderSettingsAsync();
             await ApplyMapThemeAsync();
 
             if (_lastStations.Count > 0)
                 await SetWeatherStationsOnMapCoreAsync(_lastStations, _lastActiveStation, _lastActiveObservation, _lastStationObservations);
+        }
+
+        private async Task ApplyMapProviderSettingsAsync()
+        {
+            if (!_mapReady || MapView?.CoreWebView2 == null) return;
+            string tokenJson = JsonSerializer.Serialize(_unitSettings.MapboxAccessToken ?? "");
+            await MapView.CoreWebView2.ExecuteScriptAsync($"configureMapbox({tokenJson});");
         }
 
         public async Task ApplyMapThemeAsync()
@@ -642,6 +650,7 @@ private void ApplySavedAlertsMapSplit()
                 _ = UpdateWeatherStationsVisibilityOnMapAsync();
                 // Push palette + severity visuals immediately on first load.
                 _ = UpdateMapStylingOnMapAsync();
+                _ = ApplyMapProviderSettingsAsync();
                 _ = ApplyMapThemeAsync();
             };
 
