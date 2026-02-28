@@ -31,6 +31,7 @@ public sealed class ReverseGeocodeCoordinator : ILocationOverlayService
     private DateTime _lastSuccessUtc = DateTime.MinValue;
     private DateTime _lastFailureLogUtc = DateTime.MinValue;
     private string _lastProvider = "";
+    private DateTime _mapboxRateLimitUntilUtc = DateTime.MinValue;
 
     private GeocodeResult? _lastGood;
     private GeoPoint? _latestPendingPoint;
@@ -146,6 +147,7 @@ public sealed class ReverseGeocodeCoordinator : ILocationOverlayService
     private async Task<GeocodeResult?> TryMapboxAsync(GeoPoint gps, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(_mapboxToken)) return null;
+        if (DateTime.UtcNow < _mapboxRateLimitUntilUtc) return null;
 
         var sw = Stopwatch.StartNew();
         try
@@ -155,12 +157,40 @@ public sealed class ReverseGeocodeCoordinator : ILocationOverlayService
 
             string lat = gps.Lat.ToString("0.######", CultureInfo.InvariantCulture);
             string lon = gps.Lon.ToString("0.######", CultureInfo.InvariantCulture);
-            string url = $"https://api.mapbox.com/geocoding/v5/mapbox.places/{lon},{lat}.json?types=address,poi,place,region&limit=6&access_token={Uri.EscapeDataString(_mapboxToken)}";
-            using var req = new HttpRequestMessage(HttpMethod.Get, url);
-            using var res = await _http.SendAsync(req, timeout.Token);
-            if (!res.IsSuccessStatusCode) return null;
+            string v6Url = $"https://api.mapbox.com/search/geocode/v6/reverse?longitude={lon}&latitude={lat}&types=address,street,place,region,neighborhood,locality&limit=8&access_token={Uri.EscapeDataString(_mapboxToken)}";
 
-            using var doc = JsonDocument.Parse(await res.Content.ReadAsStringAsync(timeout.Token));
+            using var reqV6 = new HttpRequestMessage(HttpMethod.Get, v6Url);
+            using var resV6 = await _http.SendAsync(reqV6, timeout.Token);
+
+            string? payload = null;
+            if (resV6.IsSuccessStatusCode)
+            {
+                payload = await resV6.Content.ReadAsStringAsync(timeout.Token);
+            }
+            else if ((int)resV6.StatusCode is 401 or 403)
+            {
+                _log?.Invoke($"Mapbox geocode auth error ({(int)resV6.StatusCode}); using fallback provider.");
+                return null;
+            }
+            else if ((int)resV6.StatusCode == 429)
+            {
+                _mapboxRateLimitUntilUtc = DateTime.UtcNow.AddMinutes(20);
+                _log?.Invoke("Mapbox geocode rate-limited; temporarily using fallback provider.");
+                return null;
+            }
+            else
+            {
+                // Fallback to the legacy endpoint in case v6 is blocked for this token.
+                string v5Url = $"https://api.mapbox.com/geocoding/v5/mapbox.places/{lon},{lat}.json?types=address,poi,place,region&limit=6&access_token={Uri.EscapeDataString(_mapboxToken)}";
+                using var reqV5 = new HttpRequestMessage(HttpMethod.Get, v5Url);
+                using var resV5 = await _http.SendAsync(reqV5, timeout.Token);
+                if (!resV5.IsSuccessStatusCode) return null;
+                payload = await resV5.Content.ReadAsStringAsync(timeout.Token);
+            }
+
+            if (string.IsNullOrWhiteSpace(payload)) return null;
+
+            using var doc = JsonDocument.Parse(payload);
             if (!doc.RootElement.TryGetProperty("features", out var features) || features.ValueKind != JsonValueKind.Array || features.GetArrayLength() == 0)
                 return null;
 
@@ -175,9 +205,12 @@ public sealed class ReverseGeocodeCoordinator : ILocationOverlayService
                 var placeType = f.TryGetProperty("place_type", out var pt) && pt.ValueKind == JsonValueKind.Array && pt.GetArrayLength() > 0
                     ? pt[0].GetString() ?? ""
                     : "";
-                string text = f.TryGetProperty("text", out var t) ? t.GetString() ?? "" : "";
+                string text = ReadFirst(f, "text", "name", "feature_name", "place_name");
 
                 if (string.IsNullOrWhiteSpace(road) && (placeType is "address" or "poi"))
+                    road = text;
+
+                if (string.IsNullOrWhiteSpace(road) && placeType is "street" or "neighborhood")
                     road = text;
 
                 if (placeType == "place" && string.IsNullOrWhiteSpace(city))
@@ -188,6 +221,14 @@ public sealed class ReverseGeocodeCoordinator : ILocationOverlayService
                         placeLon = c[0].GetDouble();
                         placeLat = c[1].GetDouble();
                     }
+                    else if (f.TryGetProperty("geometry", out var g)
+                        && g.TryGetProperty("coordinates", out var gc)
+                        && gc.ValueKind == JsonValueKind.Array
+                        && gc.GetArrayLength() == 2)
+                    {
+                        placeLon = gc[0].GetDouble();
+                        placeLat = gc[1].GetDouble();
+                    }
                 }
 
                 if (f.TryGetProperty("context", out var ctxArr) && ctxArr.ValueKind == JsonValueKind.Array)
@@ -195,7 +236,7 @@ public sealed class ReverseGeocodeCoordinator : ILocationOverlayService
                     foreach (var c in ctxArr.EnumerateArray())
                     {
                         string id = c.TryGetProperty("id", out var idEl) ? idEl.GetString() ?? "" : "";
-                        string tx = c.TryGetProperty("text", out var txEl) ? txEl.GetString() ?? "" : "";
+                        string tx = ReadFirst(c, "text", "name");
                         string shortCode = c.TryGetProperty("short_code", out var sc) ? sc.GetString() ?? "" : "";
 
                         if (string.IsNullOrWhiteSpace(city) && id.StartsWith("place.")) city = tx;
@@ -205,10 +246,29 @@ public sealed class ReverseGeocodeCoordinator : ILocationOverlayService
             }
 
             road = LocationOverlayFormatting.NormalizeRoadName(road);
+            if (string.IsNullOrWhiteSpace(city))
+            {
+                city = features.EnumerateArray()
+                    .Select(f => ReadFirst(f, "place", "locality", "district"))
+                    .FirstOrDefault(v => !string.IsNullOrWhiteSpace(v)) ?? "";
+            }
             sw.Stop();
             return new GeocodeResult(road, city, state, placeLat, placeLon, "Mapbox", (int)sw.ElapsedMilliseconds);
         }
         catch { return null; }
+    }
+
+    private static string ReadFirst(JsonElement obj, params string[] names)
+    {
+        foreach (var n in names)
+        {
+            if (obj.TryGetProperty(n, out var val) && val.ValueKind == JsonValueKind.String)
+            {
+                var s = val.GetString();
+                if (!string.IsNullOrWhiteSpace(s)) return s;
+            }
+        }
+        return "";
     }
 
     private async Task<GeocodeResult?> TryNominatimAsync(GeoPoint gps, CancellationToken ct)

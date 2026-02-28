@@ -119,15 +119,65 @@ window.setSpcOpacity = function(v){
     // =======================
     const map = L.map('map', { zoomControl: true, doubleClickZoom: false }).setView([39.5, -98.35], 4);
 
+    const mapbox = {
+        token: "",
+        rateLimitedUntil: 0
+    };
+
     const baseLayers = {
         light: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18 }),
         dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', { maxZoom: 19 })
     };
-    let currentBase = 'dark';
+
+    function hasMapbox() {
+        return !!(mapbox.token && Date.now() >= mapbox.rateLimitedUntil);
+    }
+
+    function ensureMapboxLayers() {
+        if (!mapbox.token) return;
+        if (!baseLayers.mapboxDark) {
+            baseLayers.mapboxDark = L.tileLayer('https://api.mapbox.com/styles/v1/mapbox/dark-v11/tiles/{z}/{x}/{y}?access_token={accessToken}', {
+                maxZoom: 20,
+                tileSize: 512,
+                zoomOffset: -1,
+                accessToken: mapbox.token
+            });
+        }
+
+        if (!baseLayers.mapboxLight) {
+            baseLayers.mapboxLight = L.tileLayer('https://api.mapbox.com/styles/v1/mapbox/light-v11/tiles/{z}/{x}/{y}?access_token={accessToken}', {
+                maxZoom: 20,
+                tileSize: 512,
+                zoomOffset: -1,
+                accessToken: mapbox.token
+            });
+        }
+    }
+
+    function resolveBaseKey(theme) {
+        if (theme === 'light') return hasMapbox() ? 'mapboxLight' : 'light';
+        return hasMapbox() ? 'mapboxDark' : 'dark';
+    }
+
+    window.configureMapbox = (token) => {
+        mapbox.token = (token || '').toString().trim();
+        mapbox.rateLimitedUntil = 0;
+        ensureMapboxLayers();
+        const preferred = resolveBaseKey(currentTheme);
+        if (preferred !== currentBase) {
+            try { map.removeLayer(baseLayers[currentBase]); } catch {}
+            currentBase = preferred;
+            if (baseLayers[currentBase]) baseLayers[currentBase].addTo(map);
+        }
+    };
+
+    let currentTheme = 'dark';
+    let currentBase = resolveBaseKey(currentTheme);
     baseLayers[currentBase].addTo(map);
 
     window.setMapTheme = (theme) => {
-        const next = (String(theme || '').toLowerCase() === 'light') ? 'light' : 'dark';
+        currentTheme = (String(theme || '').toLowerCase() === 'light') ? 'light' : 'dark';
+        const next = resolveBaseKey(currentTheme);
         if (next === currentBase) return;
         try { map.removeLayer(baseLayers[currentBase]); } catch {}
         currentBase = next;
@@ -902,6 +952,65 @@ window.setSpcOpacity = function(v){
         return L.latLng(loc[1], loc[0]);
     }
 
+    async function routeWithMapbox(startRaw, endRaw) {
+        if (!hasMapbox()) throw new Error("Mapbox unavailable");
+
+        const token = encodeURIComponent(mapbox.token);
+        const coords = `${startRaw.lng},${startRaw.lat};${endRaw.lng},${endRaw.lat}`;
+        const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${coords}?geometries=geojson&overview=full&steps=true&access_token=${token}`;
+        const res = await fetch(url);
+
+        if (res.status === 429) {
+            mapbox.rateLimitedUntil = Date.now() + (20 * 60 * 1000);
+            throw new Error("Mapbox rate limit reached");
+        }
+
+        if (!res.ok) {
+            throw new Error(`Mapbox directions failed (${res.status})`);
+        }
+
+        const data = await res.json();
+        const route = data?.routes?.[0];
+        const coordsList = route?.geometry?.coordinates;
+        if (!Array.isArray(coordsList) || coordsList.length < 2)
+            throw new Error("No Mapbox route geometry");
+
+        const line = L.polyline(coordsList.map(([lng, lat]) => [lat, lng]));
+        const b = line.getBounds();
+        const wp = [L.latLng(startRaw.lat, startRaw.lng), L.latLng(endRaw.lat, endRaw.lng)];
+
+        routingControl = L.Routing.control({
+            waypoints: wp,
+            lineOptions: {
+                styles: [{ color: '#3b82f6', opacity: 0.95, weight: 6 }],
+                addWaypoints: false,
+                extendToWaypoints: true,
+                missingRouteTolerance: 1
+            },
+            createMarker: (i, waypoint) => L.marker(waypoint.latLng),
+            routeWhileDragging: false,
+            addWaypoints: false,
+            draggableWaypoints: false,
+            showAlternatives: false,
+            fitSelectedRoutes: false,
+            show: true,
+            router: {
+                route: function(waypoints, callback) {
+                    callback(null, [{
+                        name: "Mapbox",
+                        summary: route.legs?.[0]?.summary || "",
+                        coordinates: coordsList.map(([lng, lat]) => L.latLng(lat, lng)),
+                        inputWaypoints: waypoints,
+                        waypoints,
+                        instructions: []
+                    }]);
+                }
+            }
+        }).addTo(map);
+
+        if (b.isValid()) map.fitBounds(b.pad(0.2));
+    }
+
     window.setRouteDestination = async (destLat, destLon) => {
 
         if (!gpsMarker) {
@@ -921,55 +1030,54 @@ window.setSpcOpacity = function(v){
         window.clearRoute();
 
         try {
-            const start = await snapToRoad(primaryBase, startRaw.lat, startRaw.lng);
-            const end = await snapToRoad(primaryBase, endRaw.lat, endRaw.lng);
+            if (hasMapbox()) {
+                await routeWithMapbox(startRaw, endRaw);
+            } else {
+                const start = await snapToRoad(primaryBase, startRaw.lat, startRaw.lng);
+                const end = await snapToRoad(primaryBase, endRaw.lat, endRaw.lng);
 
-            const router = L.Routing.osrmv1({
-                serviceUrl: primaryRoute,
-                profile: "driving"
-            });
+                const router = L.Routing.osrmv1({
+                    serviceUrl: primaryRoute,
+                    profile: "driving"
+                });
 
-            routingControl = L.Routing.control({
-                router,
-                waypoints: [start, end],
-                routeWhileDragging: false,
-                addWaypoints: false,
-                draggableWaypoints: false,
-                showAlternatives: false,
-                fitSelectedRoutes: true,
-                show: true
-            }).addTo(map);
-
-            routingControl.on("routingerror", async () => {
-                try {
-                    window.clearRoute();
-
-                    const start2 = await snapToRoad(fallbackBase, startRaw.lat, startRaw.lng);
-                    const end2 = await snapToRoad(fallbackBase, endRaw.lat, endRaw.lng);
-
-                    const router2 = L.Routing.osrmv1({
-                        serviceUrl: fallbackRoute,
-                        profile: "driving"
-                    });
-
-                    routingControl = L.Routing.control({
-                        router: router2,
-                        waypoints: [start2, end2],
-                        routeWhileDragging: false,
-                        addWaypoints: false,
-                        draggableWaypoints: false,
-                        showAlternatives: false,
-                        fitSelectedRoutes: true,
-                        show: true
-                    }).addTo(map);
-
-                } catch (err2) {
-                    showRouteError(err2.message);
-                }
-            });
+                routingControl = L.Routing.control({
+                    router,
+                    waypoints: [start, end],
+                    routeWhileDragging: false,
+                    addWaypoints: false,
+                    draggableWaypoints: false,
+                    showAlternatives: false,
+                    fitSelectedRoutes: true,
+                    show: true
+                }).addTo(map);
+            }
 
         } catch (err) {
-            showRouteError(err.message);
+            try {
+                window.clearRoute();
+
+                const start2 = await snapToRoad(fallbackBase, startRaw.lat, startRaw.lng);
+                const end2 = await snapToRoad(fallbackBase, endRaw.lat, endRaw.lng);
+
+                const router2 = L.Routing.osrmv1({
+                    serviceUrl: fallbackRoute,
+                    profile: "driving"
+                });
+
+                routingControl = L.Routing.control({
+                    router: router2,
+                    waypoints: [start2, end2],
+                    routeWhileDragging: false,
+                    addWaypoints: false,
+                    draggableWaypoints: false,
+                    showAlternatives: false,
+                    fitSelectedRoutes: true,
+                    show: true
+                }).addTo(map);
+            } catch (err2) {
+                showRouteError((err2 && err2.message) ? err2.message : err.message);
+            }
         }
 
         followEnabled = false;
